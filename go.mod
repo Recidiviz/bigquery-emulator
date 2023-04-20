@@ -6,13 +6,13 @@ require (
 	cloud.google.com/go/bigquery v1.44.0
 	cloud.google.com/go/storage v1.28.1
 	github.com/GoogleCloudPlatform/golang-samples/bigquery v0.0.0-20221115172052-07ffb99455e8
+	github.com/Recidiviz/go-zetasqlite v0.13.6-recidiviz.3
 	github.com/apache/arrow/go/v10 v10.0.0
 	github.com/fsouza/fake-gcs-server v1.43.0
 	github.com/go-playground/validator/v10 v10.11.0
 	github.com/goccy/go-json v0.10.0
 	github.com/goccy/go-yaml v1.9.5
 	github.com/goccy/go-zetasql v0.5.1
-	github.com/goccy/go-zetasqlite v0.13.5
 	github.com/google/go-cmp v0.5.9
 	github.com/googleapis/gax-go/v2 v2.7.0
 	github.com/gorilla/mux v1.8.0
