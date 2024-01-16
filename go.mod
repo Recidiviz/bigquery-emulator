@@ -11,7 +11,7 @@ require (
 	github.com/go-playground/validator/v10 v10.11.0
 	github.com/goccy/go-json v0.10.0
 	github.com/goccy/go-yaml v1.9.5
-	github.com/goccy/go-zetasql v0.5.4
+	github.com/goccy/go-zetasql v0.5.5
 	github.com/goccy/go-zetasqlite v0.17.3
 	github.com/google/go-cmp v0.5.9
 	github.com/googleapis/gax-go/v2 v2.11.0
@@ -88,3 +88,5 @@ require (
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230822172742-b8732ec3820d // indirect
 )
+
+replace github.com/goccy/go-zetasqlite => github.com/Recidiviz/go-zetasqlite v0.18.0-recidiviz.2
