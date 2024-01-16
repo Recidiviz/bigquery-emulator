@@ -88,3 +88,8 @@ require (
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230822172742-b8732ec3820d // indirect
 )
+
+
+replace (
+	github.com/goccy/go-zetasql => github.com/Recidiviz/go-zetasqlite v0.13.6-recidiviz.5
+)
