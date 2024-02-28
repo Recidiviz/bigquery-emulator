@@ -4,11 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/goccy/go-zetasqlite"
 	"reflect"
-	"sort"
 	"strings"
 
-	"github.com/goccy/go-zetasqlite"
 	"go.uber.org/zap"
 	bigqueryv2 "google.golang.org/api/bigquery/v2"
 
@@ -371,34 +370,51 @@ func (r *Repository) AddTableData(ctx context.Context, tx *connection.Tx, projec
 		_ = tx.MetadataRepoMode()
 	}()
 
-	var columns []string
-	for _, col := range table.Columns {
-		columns = append(columns, col.Name)
-	}
-	sort.Strings(columns)
-	rows := make([]string, 0, len(table.Data))
-	values := make([]interface{}, 0, len(table.Data)*len(columns))
-	for _, data := range table.Data {
-		placeholders := make([]string, 0, len(data))
-		for _, col := range columns {
-			values = append(values, data[col])
-			placeholders = append(placeholders, "?")
-		}
-		rows = append(rows, fmt.Sprintf("(%s)", strings.Join(placeholders, ",")))
-	}
-	columnsWithEscape := make([]string, 0, len(columns))
-	for _, col := range columns {
-		columnsWithEscape = append(columnsWithEscape, fmt.Sprintf("`%s`", col))
+	placeholders := make([]string, 0, len(table.Columns))
+	columnsWithEscape := make([]string, 0, len(table.Columns))
+	for _, column := range table.Columns {
+		placeholders = append(placeholders, "?")
+		columnsWithEscape = append(columnsWithEscape, fmt.Sprintf("`%s`", column.Name))
 	}
 	query := fmt.Sprintf(
-		"INSERT `%s` (%s) VALUES %s",
+		"INSERT `%s` (%s) VALUES (%s)",
 		r.tablePath(projectID, datasetID, table.ID),
 		strings.Join(columnsWithEscape, ","),
-		strings.Join(rows, ","),
+		strings.Join(placeholders, ","),
 	)
-	if _, err := tx.Tx().ExecContext(ctx, query, values...); err != nil {
+
+	stmt, err := tx.Tx().PrepareContext(ctx, query)
+	if err != nil {
 		return err
 	}
+
+	for _, data := range table.Data {
+		values := make([]interface{}, 0, len(table.Columns))
+		for _, column := range table.Columns {
+			if value, found := data[column.Name]; found {
+				isTimestampColumn := column.Type == types.TIMESTAMP
+				inputString, isInputString := value.(string)
+
+				if isInputString && isTimestampColumn {
+					parsedTimestamp, err := zetasqlite.TimeFromTimestampValue(inputString)
+					// If we could parse the timestamp, use it when inserting, otherwise fallback to the supplied value
+					if err == nil {
+						values = append(values, parsedTimestamp)
+						continue
+					}
+				}
+
+				values = append(values, value)
+			} else {
+				values = append(values, nil)
+			}
+		}
+
+		if _, err := stmt.ExecContext(ctx, values...); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
