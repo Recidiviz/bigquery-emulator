@@ -70,10 +70,10 @@ func (d *Dataset) Insert(ctx context.Context, tx *sql.Tx) error {
 	return d.repo.AddDataset(ctx, tx, d)
 }
 
-func (d *Dataset) Delete(ctx context.Context, tx *sql.Tx) error {
+func (d *Dataset) Delete(ctx context.Context, tx *sql.Tx, inUseOk bool) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	return d.repo.DeleteDataset(ctx, tx, d)
+	return d.repo.DeleteDataset(ctx, tx, d, inUseOk)
 }
 
 func (d *Dataset) DeleteModel(ctx context.Context, tx *sql.Tx, id string) error {

@@ -96,7 +96,7 @@ func (p *Project) DeleteDataset(ctx context.Context, tx *sql.Tx, id string) erro
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if err := dataset.Delete(ctx, tx); err != nil {
+	if err := dataset.Delete(ctx, tx, false); err != nil {
 		return err
 	}
 	return nil

@@ -16,6 +16,7 @@ import (
 )
 
 var ErrDuplicatedDataset = errors.New("dataset is already created")
+var ErrDatasetInUse = errors.New("dataset is in use, empty the dataset before deleting it")
 
 var schemata = []string{
 	`
@@ -80,6 +81,7 @@ const (
 	StmtFindTable             internal.Statement = `SELECT id, metadata FROM tables WHERE projectID = @projectID AND datasetID = @datasetID AND id = @tableID`
 	StmtUpdateTable           internal.Statement = `UPDATE tables SET metadata = @metadata WHERE projectID = @projectID AND datasetID = @datasetID AND id = @id`
 	StmtTableExists           internal.Statement = `SELECT TRUE FROM tables WHERE projectID = @projectID AND datasetID = @datasetID AND id = @tableID`
+	StmtTablesExistInDataset  internal.Statement = `SELECT TRUE FROM tables WHERE projectID = @projectID AND datasetID = @datasetID LIMIT 1`
 	StmtFindTablesInDataset   internal.Statement = `SELECT id, datasetID, metadata FROM tables WHERE projectID = @projectID AND datasetID = @datasetID`
 	StmtFindModelsInDataset   internal.Statement = `SELECT id, datasetID, metadata FROM models WHERE projectID = @projectID AND datasetID = @datasetID`
 	StmtUpdateModel           internal.Statement = `UPDATE models SET metadata = @metadata WHERE projectID = @projectID AND datasetID = @datasetID AND id = @id`
@@ -111,6 +113,7 @@ var preparedStatements = []internal.Statement{
 	StmtFindTable,
 	StmtUpdateTable,
 	StmtTableExists,
+	StmtTablesExistInDataset,
 	StmtFindTablesInDataset,
 	StmtFindModelsInDataset,
 	StmtFindRoutinesInDataset,
@@ -733,7 +736,35 @@ func (r *Repository) UpdateDataset(ctx context.Context, tx *sql.Tx, dataset *Dat
 	return nil
 }
 
-func (r *Repository) DeleteDataset(ctx context.Context, tx *sql.Tx, dataset *Dataset) error {
+func (r *Repository) TablesExistInDataset(ctx context.Context, tx *sql.Tx, dataset *Dataset) (bool, error) {
+	stmt, err := r.queries.Get(ctx, tx, StmtTablesExistInDataset)
+	if err != nil {
+		return false, err
+	}
+	var result bool
+	err = stmt.QueryRowContext(
+		ctx,
+		sql.Named("projectID", dataset.ProjectID),
+		sql.Named("datasetID", dataset.ID),
+	).Scan(&result)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	return result, nil
+}
+
+func (r *Repository) DeleteDataset(ctx context.Context, tx *sql.Tx, dataset *Dataset, inUseOk bool) error {
+	inUse, err := r.TablesExistInDataset(ctx, tx, dataset)
+	if err != nil {
+		return err
+	}
+	if inUse && !inUseOk {
+		return fmt.Errorf("dataset %s: %w", dataset.ID, ErrDatasetInUse)
+	}
 	stmt, err := r.queries.Get(ctx, tx, StmtDeleteDataset)
 	if err != nil {
 		return err
