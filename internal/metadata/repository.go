@@ -8,11 +8,14 @@ import (
 	"fmt"
 	"github.com/goccy/bigquery-emulator/internal"
 	"github.com/goccy/go-zetasqlite"
+	"github.com/mattn/go-sqlite3"
 	bigqueryv2 "google.golang.org/api/bigquery/v2"
 
 	internaltypes "github.com/goccy/bigquery-emulator/internal/types"
 	"github.com/goccy/bigquery-emulator/types"
 )
+
+var ErrDuplicatedDataset = errors.New("dataset is already created")
 
 var schemata = []string{
 	`
@@ -699,6 +702,12 @@ func (r *Repository) AddDataset(ctx context.Context, tx *sql.Tx, dataset *Datase
 		sql.Named("projectID", dataset.ProjectID),
 		sql.Named("metadata", string(metadata)),
 	); err != nil {
+		var sqliteError sqlite3.Error
+		if errors.As(errors.Unwrap(err), &sqliteError) {
+			if sqliteError.Code == sqlite3.ErrConstraint {
+				return fmt.Errorf("dataset %s: %w", dataset.ID, ErrDuplicatedDataset)
+			}
+		}
 		return err
 	}
 	return nil
