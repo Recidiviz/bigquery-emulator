@@ -805,11 +805,17 @@ func getTableMetadata(ctx context.Context, server *Server, projectID, datasetID,
 	if err != nil {
 		return nil, err
 	}
-	dataset := project.Dataset(datasetID)
+	dataset, err := project.Dataset(ctx, datasetID)
+	if err != nil {
+		return nil, err
+	}
 	if dataset == nil {
 		return nil, fmt.Errorf("dataset %s is not found in project %s", datasetID, projectID)
 	}
-	table := dataset.Table(tableID)
+	table, err := dataset.Table(ctx, tableID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find table %s: %w", tableID, err)
+	}
 	if table == nil {
 		return nil, fmt.Errorf("table %s is not found in dataset %s", tableID, datasetID)
 	}

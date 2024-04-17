@@ -29,8 +29,8 @@ github.com/JohnCGriffin/overflow v0.0.0-20211019200055-46fa312c352c h1:RGWPOewvK
 github.com/JohnCGriffin/overflow v0.0.0-20211019200055-46fa312c352c/go.mod h1:X0CRv0ky0k6m906ixxpzmDRLvX58TFUKS2eePweuyxk=
 github.com/Recidiviz/go-sqlite3 v0.0.0-20240220230115-bffb5ad78048 h1:G8qFbNf/6IWYup4//DcrwsMYvAl80qZk9hEb6Z+UfKc=
 github.com/Recidiviz/go-sqlite3 v0.0.0-20240220230115-bffb5ad78048/go.mod h1:Uh1q+B4BYcTPb+yiD3kU8Ct7aC0hY9fxUwlHK0RXw+Y=
-github.com/Recidiviz/go-zetasqlite v0.18.0-recidiviz.7 h1:wvjkJOGE9xCk4WtzNedjHOPuudqmqn9yz3Son8SPVRQ=
-github.com/Recidiviz/go-zetasqlite v0.18.0-recidiviz.7/go.mod h1:KVfVr9Lp7/4FH0Eeiunu1Dh274lxKJvWwpQWEkoRkuA=
+github.com/Recidiviz/go-zetasqlite v0.18.0-recidiviz.8 h1:OFNdqgtpVfUhcU5wIq0Uipxm7eZ+eiolpVGhrEFt1yA=
+github.com/Recidiviz/go-zetasqlite v0.18.0-recidiviz.8/go.mod h1:KVfVr9Lp7/4FH0Eeiunu1Dh274lxKJvWwpQWEkoRkuA=
 github.com/andybalholm/brotli v1.0.4 h1:V7DdXeJtZscaqfNuAdSRuRFzuiKlHSC/Zh3zl9qY3JY=
 github.com/andybalholm/brotli v1.0.4/go.mod h1:fO7iG3H7G2nSZ7m0zPUDn85XEX2GTukHGRSepvi9Eig=
 github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kdvxnR2qWY=

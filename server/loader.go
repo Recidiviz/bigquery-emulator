@@ -34,26 +34,17 @@ func (s *Server) addProject(ctx context.Context, project *types.Project) error {
 			}
 		}
 	}
-	p := s.metaRepo.ProjectFromData(project)
-	found, err := s.metaRepo.FindProjectWithConn(ctx, tx.Tx(), p.ID)
-	if err != nil {
+	p, _, _ := s.metaRepo.ProjectFromData(project)
+	if err := s.metaRepo.AddProjectIfNotExists(ctx, tx.Tx(), p); err != nil {
 		return err
 	}
-	if found != nil {
-		if err := s.metaRepo.UpdateProject(ctx, tx.Tx(), p); err != nil {
+	for _, d := range project.Datasets {
+		dataset, tables, _, _ := s.metaRepo.DatasetFromData(p.ID, d)
+		if err := s.metaRepo.AddDataset(ctx, tx.Tx(), dataset); err != nil {
 			return err
 		}
-	} else {
-		if err := s.metaRepo.AddProjectIfNotExists(ctx, tx.Tx(), p); err != nil {
-			return err
-		}
-	}
-	for _, dataset := range p.Datasets() {
-		if err := dataset.Insert(ctx, tx.Tx()); err != nil {
-			return err
-		}
-		for _, table := range dataset.Tables() {
-			if err := table.Insert(ctx, tx.Tx()); err != nil {
+		for _, table := range tables {
+			if err := s.metaRepo.AddTable(ctx, tx.Tx(), table); err != nil {
 				return err
 			}
 		}

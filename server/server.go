@@ -48,6 +48,8 @@ func New(storage Storage) (*Server, error) {
 		}
 	}
 	db, err := sql.Open("zetasqlite", string(storage))
+	db.SetConnMaxIdleTime(-1)
+	db.SetConnMaxLifetime(1<<63 - 1)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +131,7 @@ func (s *Server) SetProject(id string) error {
 	if err := s.metaRepo.AddProjectIfNotExists(
 		ctx,
 		tx.Tx(),
-		metadata.NewProject(s.metaRepo, id, nil, nil),
+		metadata.NewProject(s.metaRepo, id),
 	); err != nil {
 		return err
 	}

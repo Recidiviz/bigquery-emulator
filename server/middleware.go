@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
@@ -64,7 +65,11 @@ func accessLogMiddleware() func(http.Handler) http.Handler {
 				fmt.Sprintf("%s %s", r.Method, r.URL.Path),
 				zap.String("query", r.URL.RawQuery),
 			)
+			start := time.Now()
 			next.ServeHTTP(w, r)
+			logger.Logger(r.Context()).Info(
+				fmt.Sprintf("%s %s took %v", r.Method, r.URL.Path, time.Since(start)),
+			)
 		})
 	}
 }
@@ -195,7 +200,11 @@ func withDatasetMiddleware() func(http.Handler) http.Handler {
 			datasetID, exists := datasetIDFromParams(params)
 			if exists {
 				project := projectFromContext(ctx)
-				dataset := project.Dataset(datasetID)
+				dataset, err := project.Dataset(ctx, datasetID)
+				if err != nil {
+					errorResponse(ctx, w, errNotFound(fmt.Sprintf("%s", err)))
+					return
+				}
 				if dataset == nil {
 					errorResponse(ctx, w, errNotFound(fmt.Sprintf("dataset %s is not found", datasetID)))
 					return
@@ -218,7 +227,11 @@ func withJobMiddleware() func(http.Handler) http.Handler {
 			jobID, exists := jobIDFromParams(params)
 			if exists {
 				project := projectFromContext(ctx)
-				job := project.Job(jobID)
+				job, err := project.Job(ctx, jobID)
+				if err != nil {
+					errorResponse(ctx, w, errInternalError(fmt.Sprintf("error finding job %s: %s", jobID, err)))
+					return
+				}
 				if job == nil {
 					errorResponse(ctx, w, errNotFound(fmt.Sprintf("job %s is not found", jobID)))
 					return
@@ -240,8 +253,14 @@ func withTableMiddleware() func(http.Handler) http.Handler {
 			params := mux.Vars(r)
 			tableID, exists := tableIDFromParams(params)
 			if exists {
+				project := projectFromContext(ctx)
 				dataset := datasetFromContext(ctx)
-				table := dataset.Table(tableID)
+				server := serverFromContext(ctx)
+				table, err := server.metaRepo.FindTable(ctx, project.ID, dataset.ID, tableID)
+				if err != nil {
+					errorResponse(ctx, w, errInternalError(fmt.Sprintf("could not fetch table %s: %s", tableID, err)))
+					return
+				}
 				if table == nil {
 					errorResponse(ctx, w, errNotFound(fmt.Sprintf("table %s is not found", tableID)))
 					return
@@ -264,7 +283,11 @@ func withModelMiddleware() func(http.Handler) http.Handler {
 			modelID, exists := modelIDFromParams(params)
 			if exists {
 				dataset := datasetFromContext(ctx)
-				model := dataset.Model(modelID)
+				model, err := dataset.Model(ctx, modelID)
+				if err != nil {
+					errorResponse(ctx, w, errInternalError(fmt.Sprintf("failed to find model: %s", err)))
+					return
+				}
 				if model == nil {
 					errorResponse(ctx, w, errNotFound(fmt.Sprintf("model %s is not found", modelID)))
 					return
@@ -287,7 +310,11 @@ func withRoutineMiddleware() func(http.Handler) http.Handler {
 			routineID, exists := routineIDFromParams(params)
 			if exists {
 				dataset := datasetFromContext(ctx)
-				routine := dataset.Routine(routineID)
+				routine, err := dataset.Routine(ctx, routineID)
+				if err != nil {
+					errorResponse(ctx, w, errInternalError(fmt.Sprintf("failed to find routine: %s", err)))
+					return
+				}
 				if routine == nil {
 					errorResponse(ctx, w, errNotFound(fmt.Sprintf("routine %s is not found", routineID)))
 					return

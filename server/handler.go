@@ -327,7 +327,11 @@ func (h *uploadContentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	jobID := uploadID[0]
-	job := project.Job(jobID)
+	job, err := project.Job(ctx, jobID)
+	if err != nil {
+		errorResponse(ctx, w, errJobInternalError(err.Error()))
+		return
+	}
 	if err := h.Handle(ctx, &uploadContentRequest{
 		server:  server,
 		project: project,
@@ -401,8 +405,14 @@ func (h *uploadContentHandler) normalizeColumnNameForJSONData(columnMap map[stri
 func (h *uploadContentHandler) Handle(ctx context.Context, r *uploadContentRequest) error {
 	load := r.job.Content().Configuration.Load
 	tableRef := load.DestinationTable
-	dataset := r.project.Dataset(tableRef.DatasetId)
-	table := dataset.Table(tableRef.TableId)
+	dataset, err := r.project.Dataset(ctx, tableRef.DatasetId)
+	if err != nil {
+		return err
+	}
+	table, err := dataset.Table(ctx, tableRef.TableId)
+	if err != nil {
+		return err
+	}
 	if table == nil {
 		if load.CreateDisposition == "CREATE_NEVER" {
 			return fmt.Errorf("`%s` is not found", tableRef.TableId)
@@ -418,7 +428,10 @@ func (h *uploadContentHandler) Handle(ctx context.Context, r *uploadContentReque
 		}); err != nil {
 			return err
 		}
-		table = dataset.Table(tableRef.TableId)
+		table, err = dataset.Table(ctx, tableRef.TableId)
+		if err != nil {
+			return err
+		}
 	}
 
 	tableContent, err := table.Content()
@@ -632,16 +645,23 @@ func (h *datasetsDeleteHandler) Handle(ctx context.Context, r *datasetsDeleteReq
 		return fmt.Errorf("failed to start transaction: %w", err)
 	}
 	defer tx.RollbackIfNotCommitted()
-	if err := r.project.DeleteDataset(ctx, tx.Tx(), r.dataset.ID); err != nil {
+	if err := r.dataset.Delete(ctx, tx.Tx()); err != nil {
 		return fmt.Errorf("failed to delete dataset: %w", err)
 	}
 	if r.deleteContents {
-		for _, table := range r.dataset.Tables() {
+		tables, err := r.server.metaRepo.FindTablesInDatasetsWithConnection(ctx, tx.Tx(), r.dataset.ProjectID, r.dataset.ID)
+		if err != nil {
+			return fmt.Errorf("failed to find tables in dataset: %w", err)
+		}
+		tableIDs := make([]string, len(tables))
+		for i, table := range tables {
+			tableIDs[i] = table.ID
 			if err := table.Delete(ctx, tx.Tx()); err != nil {
 				return err
 			}
 		}
-		if err := r.server.contentRepo.DeleteTables(ctx, tx, r.project.ID, r.dataset.ID, r.dataset.TableIDs()); err != nil {
+
+		if err := r.server.contentRepo.DeleteTables(ctx, tx, r.project.ID, r.dataset.ID, tableIDs); err != nil {
 			return fmt.Errorf("failed to delete tables: %w", err)
 		}
 	}
@@ -736,9 +756,6 @@ func (h *datasetsInsertHandler) Handle(ctx context.Context, r *datasetsInsertReq
 			r.project.ID,
 			datasetID,
 			r.dataset,
-			nil,
-			nil,
-			nil,
 		),
 	); err != nil {
 		return nil, err
@@ -783,7 +800,11 @@ type datasetsListRequest struct {
 
 func (h *datasetsListHandler) Handle(ctx context.Context, r *datasetsListRequest) (*bigqueryv2.DatasetList, error) {
 	datasetsRes := []*bigqueryv2.DatasetListDatasets{}
-	for _, dataset := range r.project.Datasets() {
+	datasets, err := r.server.metaRepo.FindDatasetsInProject(ctx, r.project.ID)
+	if err != nil {
+		return nil, err
+	}
+	for _, dataset := range datasets {
 		content := dataset.Content()
 		datasetsRes = append(datasetsRes, &bigqueryv2.DatasetListDatasets{
 			DatasetReference: &bigqueryv2.DatasetReference{
@@ -937,7 +958,7 @@ func (h *jobsDeleteHandler) Handle(ctx context.Context, r *jobsDeleteRequest) er
 		return fmt.Errorf("failed to start transaction: %w", err)
 	}
 	defer tx.RollbackIfNotCommitted()
-	if err := r.project.DeleteJob(ctx, tx.Tx(), r.job.ID); err != nil {
+	if err := r.job.Delete(ctx, tx.Tx()); err != nil {
 		return fmt.Errorf("failed to delete job: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
@@ -1449,11 +1470,14 @@ func (h *jobsInsertHandler) Handle(ctx context.Context, r *jobsInsertRequest) (*
 			if err != nil {
 				return nil, err
 			}
-			destinationDataset := r.project.Dataset(tableRef.DatasetId)
-			if destinationDataset == nil {
-				return nil, fmt.Errorf("failed to find destination dataset: %s", tableRef.DatasetId)
+			destinationDataset, err := r.server.metaRepo.FindDatasetWithConnection(ctx, tx.Tx(), tableRef.ProjectId, tableRef.DatasetId)
+			if err != nil {
+				return nil, fmt.Errorf("failed to find destination dataset: %s, err: %s", tableRef.DatasetId, err)
 			}
-			destinationTable := destinationDataset.Table(tableRef.TableId)
+			destinationTable, err := r.server.metaRepo.FindTableWithConnection(ctx, tx.Tx(), destinationDataset.ProjectID, destinationDataset.ID, tableRef.TableId)
+			if err != nil {
+				return nil, fmt.Errorf("failed to query for destination table: %w", err)
+			}
 			destinationTableExists := destinationTable != nil
 			if !destinationTableExists {
 				_, err := createTableMetadata(ctx, tx, r.server, r.project, destinationDataset, tableDef.ToBigqueryV2(r.project.ID, tableRef.DatasetId))
@@ -1559,7 +1583,10 @@ func addTableMetadata(ctx context.Context, server *Server, spec *zetasqlite.Tabl
 	if err != nil {
 		return err
 	}
-	dataset := project.Dataset(datasetID)
+	dataset, err := project.Dataset(ctx, datasetID)
+	if err != nil {
+		return err
+	}
 	if dataset == nil {
 		return fmt.Errorf("dataset %s is not found", datasetID)
 	}
@@ -1607,11 +1634,17 @@ func deleteTableMetadata(ctx context.Context, server *Server, spec *zetasqlite.T
 	if err != nil {
 		return err
 	}
-	dataset := project.Dataset(datasetID)
+	dataset, err := project.Dataset(ctx, datasetID)
+	if err != nil {
+		return err
+	}
 	if dataset == nil {
 		return fmt.Errorf("dataset %s is not found", datasetID)
 	}
-	table := dataset.Table(tableID)
+	table, err := dataset.Table(ctx, tableID)
+	if err != nil {
+		return err
+	}
 	conn, err := server.connMgr.Connection(ctx, projectID, datasetID)
 	if err != nil {
 		return err
@@ -1653,9 +1686,6 @@ func (h *jobsInsertHandler) addQueryResultToDynamicDestinationTable(ctx context.
 				DatasetId: datasetID,
 			},
 		},
-		[]*metadata.Table{table},
-		nil,
-		nil,
 	)
 	if err := r.project.AddDataset(ctx, tx.Tx(), dataset); err != nil {
 		return err
@@ -1693,10 +1723,14 @@ type jobsListRequest struct {
 }
 
 func (h *jobsListHandler) Handle(ctx context.Context, r *jobsListRequest) (*bigqueryv2.JobList, error) {
-	jobs := []*bigqueryv2.JobListJobs{}
-	for _, job := range r.project.Jobs() {
+	jobsList := []*bigqueryv2.JobListJobs{}
+	jobs, err := r.project.FetchJobs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, job := range jobs {
 		content := job.Content()
-		jobs = append(jobs, &bigqueryv2.JobListJobs{
+		jobsList = append(jobsList, &bigqueryv2.JobListJobs{
 			Id:           content.Id,
 			JobReference: content.JobReference,
 			Kind:         content.Kind,
@@ -1705,7 +1739,7 @@ func (h *jobsListHandler) Handle(ctx context.Context, r *jobsListRequest) (*bigq
 			UserEmail:    content.UserEmail,
 		})
 	}
-	return &bigqueryv2.JobList{Jobs: jobs}, nil
+	return &bigqueryv2.JobList{Jobs: jobsList}, nil
 }
 
 func (h *jobsQueryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -1900,13 +1934,17 @@ type modelsListRequest struct {
 }
 
 func (h *modelsListHandler) Handle(ctx context.Context, r *modelsListRequest) (*bigqueryv2.ListModelsResponse, error) {
-	models := []*bigqueryv2.Model{}
-	for _, m := range r.dataset.Models() {
+	response := []*bigqueryv2.Model{}
+	models, err := r.dataset.Models(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, m := range models {
 		_ = m
-		models = append(models, &bigqueryv2.Model{})
+		response = append(response, &bigqueryv2.Model{})
 	}
 	return &bigqueryv2.ListModelsResponse{
-		Models: models,
+		Models: response,
 	}, nil
 }
 
@@ -2129,13 +2167,17 @@ type routinesListRequest struct {
 }
 
 func (h *routinesListHandler) Handle(ctx context.Context, r *routinesListRequest) (*bigqueryv2.ListRoutinesResponse, error) {
-	var routineList []*bigqueryv2.Routine
-	for _, routine := range r.dataset.Routines() {
+	var response []*bigqueryv2.Routine
+	routines, err := r.dataset.Routines(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, routine := range routines {
 		_ = routine
-		routineList = append(routineList, &bigqueryv2.Routine{})
+		response = append(response, &bigqueryv2.Routine{})
 	}
 	return &bigqueryv2.ListRoutinesResponse{
-		Routines: routineList,
+		Routines: response,
 	}, fmt.Errorf("unsupported bigquery.routines.list")
 }
 
@@ -2549,14 +2591,16 @@ func (h *tablesGetIamPolicyHandler) Handle(ctx context.Context, r *tablesGetIamP
 
 func (h *tablesInsertHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	server := serverFromContext(ctx)
-	project := projectFromContext(ctx)
-	dataset := datasetFromContext(ctx)
+
 	var table bigqueryv2.Table
 	if err := json.NewDecoder(r.Body).Decode(&table); err != nil {
 		errorResponse(ctx, w, errInvalid(err.Error()))
 		return
 	}
+
+	server := serverFromContext(ctx)
+	project := projectFromContext(ctx)
+	dataset := datasetFromContext(ctx)
 	res, err := h.Handle(ctx, &tablesInsertRequest{
 		server:  server,
 		project: project,
@@ -2686,28 +2730,32 @@ type tablesListRequest struct {
 }
 
 func (h *tablesListHandler) Handle(ctx context.Context, r *tablesListRequest) (*bigqueryv2.TableList, error) {
-	var tables []*bigqueryv2.TableListTables
-	for _, tableID := range r.dataset.TableIDs() {
-		table, err := r.dataset.Table(tableID).Content()
+	var response []*bigqueryv2.TableListTables
+	tables, err := r.dataset.Tables(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find tables in dataset: %w", err)
+	}
+	for _, table := range tables {
+		content, err := table.Content()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get table metadata from %s: %w", tableID, err)
+			return nil, fmt.Errorf("failed to get table metadata from %s: %w", table.ID, err)
 		}
-		tables = append(tables, &bigqueryv2.TableListTables{
-			Clustering:        table.Clustering,
-			CreationTime:      table.CreationTime,
-			ExpirationTime:    table.ExpirationTime,
-			FriendlyName:      table.FriendlyName,
-			Id:                table.Id,
-			Kind:              table.Kind,
-			Labels:            table.Labels,
-			RangePartitioning: table.RangePartitioning,
-			TableReference:    table.TableReference,
-			TimePartitioning:  table.TimePartitioning,
-			Type:              table.Type,
+		response = append(response, &bigqueryv2.TableListTables{
+			Clustering:        content.Clustering,
+			CreationTime:      content.CreationTime,
+			ExpirationTime:    content.ExpirationTime,
+			FriendlyName:      content.FriendlyName,
+			Id:                content.Id,
+			Kind:              content.Kind,
+			Labels:            content.Labels,
+			RangePartitioning: content.RangePartitioning,
+			TableReference:    content.TableReference,
+			TimePartitioning:  content.TimePartitioning,
+			Type:              content.Type,
 		})
 	}
 	return &bigqueryv2.TableList{
-		Tables:     tables,
+		Tables:     response,
 		TotalItems: int64(len(tables)),
 	}, nil
 }

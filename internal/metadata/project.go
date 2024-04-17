@@ -8,100 +8,95 @@ import (
 )
 
 type Project struct {
-	ID         string
-	datasets   []*Dataset
-	datasetMap map[string]*Dataset
-	jobs       []*Job
-	jobMap     map[string]*Job
-	mu         sync.RWMutex
-	repo       *Repository
+	ID   string
+	mu   sync.RWMutex
+	repo *Repository
 }
 
-func (p *Project) DatasetIDs() []string {
-	ids := make([]string, len(p.datasets))
-	for i := 0; i < len(p.datasets); i++ {
-		ids[i] = p.datasets[i].ID
+func (p *Project) DatasetIDs(ctx context.Context) ([]string, error) {
+	datasets, err := p.FetchDatasets(ctx)
+	if err != nil {
+		return nil, err
 	}
-	return ids
-}
-
-func (p *Project) JobIDs() []string {
-	ids := make([]string, len(p.jobs))
-	for i := 0; i < len(p.jobs); i++ {
-		ids[i] = p.jobs[i].ID
+	ids := make([]string, len(datasets))
+	for i := 0; i < len(datasets); i++ {
+		ids[i] = datasets[i].ID
 	}
-	return ids
+	return ids, nil
 }
 
-func (p *Project) Job(id string) *Job {
+func (p *Project) Job(ctx context.Context, id string) (*Job, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	return p.jobMap[id]
+	job, err := p.repo.FindJob(ctx, p.ID, id)
+	if err != nil {
+		return nil, err
+	}
+	return job, nil
 }
 
-func (p *Project) Jobs() []*Job {
+func (p *Project) Dataset(ctx context.Context, id string) (*Dataset, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	return p.jobs
+	dataset, err := p.repo.FindDataset(ctx, p.ID, id)
+	if err != nil {
+		return nil, err
+	}
+	return dataset, nil
 }
 
-func (p *Project) Dataset(id string) *Dataset {
+func (p *Project) FetchDatasets(ctx context.Context) ([]*Dataset, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	return p.datasetMap[id]
+	datasets, err := p.repo.FindDatasetsInProject(ctx, p.ID)
+	if err != nil {
+		return nil, err
+	}
+	return datasets, nil
 }
 
-func (p *Project) Datasets() []*Dataset {
+func (p *Project) FetchJobs(ctx context.Context) ([]*Job, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	return p.datasets
+	datasets, err := p.repo.FindJobsInProject(ctx, p.ID)
+	if err != nil {
+		return nil, err
+	}
+	return datasets, nil
 }
 
 func (p *Project) Insert(ctx context.Context, tx *sql.Tx) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	return p.repo.AddProject(ctx, tx, p)
 }
 
 func (p *Project) Delete(ctx context.Context, tx *sql.Tx) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	return p.repo.DeleteProject(ctx, tx, p)
 }
 
 func (p *Project) AddDataset(ctx context.Context, tx *sql.Tx, dataset *Dataset) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if _, exists := p.datasetMap[dataset.ID]; exists {
-		return fmt.Errorf("dataset %s is already created", dataset.ID)
-	}
 	if err := dataset.Insert(ctx, tx); err != nil {
-		return err
-	}
-	p.datasets = append(p.datasets, dataset)
-	p.datasetMap[dataset.ID] = dataset
-	if err := p.repo.UpdateProject(ctx, tx, p); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (p *Project) DeleteDataset(ctx context.Context, tx *sql.Tx, id string) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	dataset, exists := p.datasetMap[id]
-	if !exists {
-		return fmt.Errorf("dataset '%s' is not found in project '%s'", id, p.ID)
-	}
-	if err := dataset.Delete(ctx, tx); err != nil {
+	dataset, err := p.Dataset(ctx, id)
+	if err != nil {
 		return err
 	}
-	newDatasets := make([]*Dataset, 0, len(p.datasets))
-	for _, dataset := range p.datasets {
-		if dataset.ID == id {
-			continue
-		}
-		newDatasets = append(newDatasets, dataset)
+	if dataset == nil {
+		return fmt.Errorf("dataset '%s' is not found in project '%s'", id, p.ID)
 	}
-	p.datasets = newDatasets
-	delete(p.datasetMap, id)
-	if err := p.repo.UpdateProject(ctx, tx, p); err != nil {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if err := dataset.Delete(ctx, tx); err != nil {
 		return err
 	}
 	return nil
@@ -110,60 +105,31 @@ func (p *Project) DeleteDataset(ctx context.Context, tx *sql.Tx, id string) erro
 func (p *Project) AddJob(ctx context.Context, tx *sql.Tx, job *Job) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if _, exists := p.jobMap[job.ID]; exists {
-		return fmt.Errorf("job %s is already created", job.ID)
-	}
 	if err := job.Insert(ctx, tx); err != nil {
-		return err
-	}
-	p.jobs = append(p.jobs, job)
-	p.jobMap[job.ID] = job
-	if err := p.repo.UpdateProject(ctx, tx, p); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (p *Project) DeleteJob(ctx context.Context, tx *sql.Tx, id string) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	job, exists := p.jobMap[id]
-	if !exists {
-		return fmt.Errorf("job '%s' is not found in project '%s'", id, p.ID)
-	}
-	if err := job.Delete(ctx, tx); err != nil {
+	job, err := p.Job(ctx, id)
+	if err != nil {
 		return err
 	}
-	newJobs := make([]*Job, 0, len(p.jobs))
-	for _, job := range p.jobs {
-		if job.ID == id {
-			continue
-		}
-		newJobs = append(newJobs, job)
+	if job == nil {
+		return fmt.Errorf("job '%s' is not found in project '%s'", id, p.ID)
 	}
-	p.jobs = newJobs
-	delete(p.jobMap, id)
-	if err := p.repo.UpdateProject(ctx, tx, p); err != nil {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if err := job.Delete(ctx, tx); err != nil {
 		return err
 	}
 	return nil
 }
 
-func NewProject(repo *Repository, id string, datasets []*Dataset, jobs []*Job) *Project {
-	datasetMap := map[string]*Dataset{}
-	for _, dataset := range datasets {
-		datasetMap[dataset.ID] = dataset
-	}
-	jobMap := map[string]*Job{}
-	for _, job := range jobs {
-		jobMap[job.ID] = job
-	}
+func NewProject(repo *Repository, id string) *Project {
 	return &Project{
-		ID:         id,
-		datasets:   datasets,
-		jobs:       jobs,
-		datasetMap: datasetMap,
-		jobMap:     jobMap,
-		repo:       repo,
+		ID:   id,
+		repo: repo,
 	}
 }

@@ -5,11 +5,10 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/goccy/go-zetasqlite"
-	"reflect"
-	"strings"
-
 	"go.uber.org/zap"
 	bigqueryv2 "google.golang.org/api/bigquery/v2"
+	"reflect"
+	"strings"
 
 	"github.com/goccy/bigquery-emulator/internal/connection"
 	"github.com/goccy/bigquery-emulator/internal/logger"
