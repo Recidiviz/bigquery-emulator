@@ -1065,7 +1065,7 @@ func (h *jobsInsertHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		job:     &job,
 	})
 	if err != nil {
-		errorResponse(ctx, w, errJobInternalError(err.Error()))
+		errorResponse(ctx, w, errInvalidQuery(err.Error()))
 		return
 	}
 	encodeResponse(ctx, w, res)
@@ -1758,7 +1758,7 @@ func (h *jobsQueryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		useInt64Timestamp: isFormatOptionsUseInt64Timestamp(r),
 	})
 	if err != nil {
-		errorResponse(ctx, w, errJobInternalError(err.Error()))
+		errorResponse(ctx, w, errInvalidQuery(err.Error()))
 		return
 	}
 	encodeResponse(ctx, w, res)

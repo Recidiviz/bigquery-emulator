@@ -116,6 +116,18 @@ func TestSimpleQuery(t *testing.T) {
 			t.Fatal("Failed to query null ARRAY")
 		}
 	})
+
+	// Regression test for goccy/bigquery-emulator#316
+	t.Run("invalid query", func(t *testing.T) {
+		query := client.Query("SELECT!;")
+		_, err := query.Read(ctx)
+		if err == nil {
+			t.Fatal("Expected error, but got nil")
+		}
+		if !strings.HasSuffix(err.Error(), "invalidQuery") {
+			t.Fatal("expected invalid query")
+		}
+	})
 }
 
 func TestDataset(t *testing.T) {
