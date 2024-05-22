@@ -128,6 +128,23 @@ func TestSimpleQuery(t *testing.T) {
 			t.Fatal("expected invalid query")
 		}
 	})
+
+	// Regression test for goccy/bigquery-emulator#316
+	t.Run("invalid query", func(t *testing.T) {
+		ctx := context.Background()
+		client.Dataset("test_ds").Create(ctx, &bigquery.DatasetMetadata{Name: "test_ds"})
+		err = client.Dataset("test_ds").Table("test_table").Create(ctx,
+			&bigquery.TableMetadata{
+				Description: "test!",
+				ViewQuery:   "SELECT 1 AS A_FIELD, TEST~!",
+			})
+		if err == nil {
+			t.Fatal("Expected error, but got nil")
+		}
+		if !strings.HasSuffix(err.Error(), "invalidQuery") {
+			t.Fatal("expected invalid query")
+		}
+	})
 }
 
 func TestDataset(t *testing.T) {
