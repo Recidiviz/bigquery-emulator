@@ -2692,12 +2692,12 @@ func (h *tablesInsertHandler) Handle(ctx context.Context, r *tablesInsertRequest
 	}
 	if r.table.Schema != nil {
 		if err := r.server.contentRepo.CreateTable(ctx, tx, r.table); err != nil {
-			return nil, errInternalError(err.Error())
+			return nil, errInvalidQuery(err.Error())
 		}
 	}
 	if r.table.View != nil {
 		if err := r.server.contentRepo.CreateView(ctx, tx, r.table); err != nil {
-			return nil, errInternalError(err.Error())
+			return nil, errInvalidQuery(err.Error())
 		}
 	}
 	if err := tx.Commit(); err != nil {
