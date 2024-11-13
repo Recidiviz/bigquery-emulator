@@ -666,7 +666,7 @@ func (h *datasetsDeleteHandler) Handle(ctx context.Context, r *datasetsDeleteReq
 			}
 		}
 
-		if err := r.server.contentRepo.DeleteTables(ctx, tx, r.project.ID, r.dataset.ID, tableIDs); err != nil {
+		if err := r.server.contentRepo.DeleteTables(ctx, tx, r.project.ID, r.dataset.ID, tables); err != nil {
 			return fmt.Errorf("failed to delete tables: %w", err)
 		}
 	}
@@ -2528,7 +2528,7 @@ func (h *tablesDeleteHandler) Handle(ctx context.Context, r *tablesDeleteRequest
 		tx,
 		r.project.ID,
 		r.dataset.ID,
-		[]string{r.table.ID},
+		[]*metadata.Table{r.table},
 	); err != nil {
 		return fmt.Errorf("failed to delete table %s: %w", r.table.ID, err)
 	}
@@ -2632,24 +2632,14 @@ type tablesInsertRequest struct {
 	table   *bigqueryv2.Table
 }
 
-type TableType string
-
-const (
-	DefaultTableType          TableType = "TABLE"
-	ViewTableType             TableType = "VIEW"
-	ExternalTableType         TableType = "EXTERNAL"
-	MaterializedViewTableType TableType = "MATERIALIZED_VIEW"
-	SnapshotTableType         TableType = "SNAPSHOT"
-)
-
 func createTableMetadata(ctx context.Context, tx *connection.Tx, server *Server, project *metadata.Project, dataset *metadata.Dataset, table *bigqueryv2.Table) (*bigqueryv2.Table, *ServerError) {
 	now := time.Now().Unix()
 	table.Id = fmt.Sprintf("%s:%s.%s", project.ID, dataset.ID, table.TableReference.TableId)
 	table.CreationTime = now
 	table.LastModifiedTime = uint64(now)
-	table.Type = string(DefaultTableType) // TODO: need to handle other table types
+	table.Type = string(internaltypes.DefaultTableType) // TODO: need to handle other table types
 	if table.View != nil {
-		table.Type = string(ViewTableType)
+		table.Type = string(internaltypes.ViewTableType)
 	}
 	table.Kind = "bigquery#table"
 	table.SelfLink = fmt.Sprintf(
