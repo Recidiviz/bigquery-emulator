@@ -2572,3 +2572,87 @@ func TestInformationSchema(t *testing.T) {
 	})
 
 }
+
+func TestRowAccessPolicy(t *testing.T) {
+	ctx := context.Background()
+
+	const (
+		projectName = "test"
+	)
+
+	bqServer, err := server.New(server.TempStorage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := bqServer.SetProject(projectName); err != nil {
+		t.Fatal(err)
+	}
+	if err := bqServer.Load(server.YAMLSource(filepath.Join("testdata", "data.yaml"))); err != nil {
+		t.Fatal(err)
+	}
+
+	testServer := bqServer.TestServer()
+	defer func() {
+		testServer.Close()
+		bqServer.Stop(ctx)
+	}()
+
+	client, err := bigquery.NewClient(
+		ctx,
+		projectName,
+		option.WithEndpoint(testServer.URL),
+		option.WithoutAuthentication(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+
+	query := client.Query(`
+		CREATE ROW ACCESS POLICY apac_filter
+		ON dataset1.table_a
+		GRANT TO ('user:abc@example.com')
+		FILTER USING (name = 'abc');
+	`)
+	job, err := query.Run(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := job.Config(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := job.Wait(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	gotJob, err := client.JobFromID(ctx, job.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotJob.ID() != job.ID() {
+		t.Fatalf("failed to get job expected ID %s. but got %s", job.ID(), gotJob.ID())
+	}
+
+	query2 := client.Query(`
+		DROP ROW ACCESS POLICY apac_filter
+		ON dataset1.table_a;
+	`)
+	job2, err := query2.Run(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := job.Config(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := job.Wait(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = client.JobFromID(ctx, job2.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotJob.ID() != job.ID() {
+		t.Fatalf("failed to get job expected ID %s. but got %s", job.ID(), gotJob.ID())
+	}
+}
