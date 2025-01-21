@@ -624,6 +624,11 @@ func (h *datasetsDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		dataset:        dataset,
 		deleteContents: isDeleteContents(r),
 	}); err != nil {
+		if errors.Is(err, metadata.ErrDatasetInUse) {
+			errorResponse(ctx, w, errResourceInUse(err.Error()))
+			return
+		}
+
 		errorResponse(ctx, w, errInternalError(err.Error()))
 		return
 	}
@@ -646,7 +651,7 @@ func (h *datasetsDeleteHandler) Handle(ctx context.Context, r *datasetsDeleteReq
 		return fmt.Errorf("failed to start transaction: %w", err)
 	}
 	defer tx.RollbackIfNotCommitted()
-	if err := r.dataset.Delete(ctx, tx.Tx()); err != nil {
+	if err := r.dataset.Delete(ctx, tx.Tx(), r.deleteContents); err != nil {
 		return fmt.Errorf("failed to delete dataset: %w", err)
 	}
 	if r.deleteContents {
@@ -662,7 +667,7 @@ func (h *datasetsDeleteHandler) Handle(ctx context.Context, r *datasetsDeleteReq
 			}
 		}
 
-		if err := r.server.contentRepo.DeleteTables(ctx, tx, r.project.ID, r.dataset.ID, tableIDs); err != nil {
+		if err := r.server.contentRepo.DeleteTables(ctx, tx, r.project.ID, r.dataset.ID, tables); err != nil {
 			return fmt.Errorf("failed to delete tables: %w", err)
 		}
 	}
@@ -718,7 +723,13 @@ func (h *datasetsInsertHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		project: project,
 		dataset: &dataset,
 	})
+
 	if err != nil {
+		if errors.Is(err, metadata.ErrDuplicatedDataset) {
+			errorResponse(ctx, w, errDuplicate(err.Error()))
+			return
+		}
+
 		errorResponse(ctx, w, errInternalError(err.Error()))
 		return
 	}
@@ -1066,7 +1077,7 @@ func (h *jobsInsertHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		job:     &job,
 	})
 	if err != nil {
-		errorResponse(ctx, w, errJobInternalError(err.Error()))
+		errorResponse(ctx, w, errInvalidQuery(err.Error()))
 		return
 	}
 	encodeResponse(ctx, w, res)
@@ -1759,7 +1770,7 @@ func (h *jobsQueryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		useInt64Timestamp: isFormatOptionsUseInt64Timestamp(r),
 	})
 	if err != nil {
-		errorResponse(ctx, w, errJobInternalError(err.Error()))
+		errorResponse(ctx, w, errInvalidQuery(err.Error()))
 		return
 	}
 	encodeResponse(ctx, w, res)
@@ -2518,7 +2529,7 @@ func (h *tablesDeleteHandler) Handle(ctx context.Context, r *tablesDeleteRequest
 		tx,
 		r.project.ID,
 		r.dataset.ID,
-		[]string{r.table.ID},
+		[]*metadata.Table{r.table},
 	); err != nil {
 		return fmt.Errorf("failed to delete table %s: %w", r.table.ID, err)
 	}
@@ -2622,24 +2633,14 @@ type tablesInsertRequest struct {
 	table   *bigqueryv2.Table
 }
 
-type TableType string
-
-const (
-	DefaultTableType          TableType = "TABLE"
-	ViewTableType             TableType = "VIEW"
-	ExternalTableType         TableType = "EXTERNAL"
-	MaterializedViewTableType TableType = "MATERIALIZED_VIEW"
-	SnapshotTableType         TableType = "SNAPSHOT"
-)
-
 func createTableMetadata(ctx context.Context, tx *connection.Tx, server *Server, project *metadata.Project, dataset *metadata.Dataset, table *bigqueryv2.Table) (*bigqueryv2.Table, *ServerError) {
 	now := time.Now().Unix()
 	table.Id = fmt.Sprintf("%s:%s.%s", project.ID, dataset.ID, table.TableReference.TableId)
 	table.CreationTime = now
 	table.LastModifiedTime = uint64(now)
-	table.Type = string(DefaultTableType) // TODO: need to handle other table types
+	table.Type = string(internaltypes.DefaultTableType) // TODO: need to handle other table types
 	if table.View != nil {
-		table.Type = string(ViewTableType)
+		table.Type = string(internaltypes.ViewTableType)
 	}
 	table.Kind = "bigquery#table"
 	table.SelfLink = fmt.Sprintf(
@@ -2693,12 +2694,12 @@ func (h *tablesInsertHandler) Handle(ctx context.Context, r *tablesInsertRequest
 	}
 	if r.table.Schema != nil {
 		if err := r.server.contentRepo.CreateTable(ctx, tx, r.table); err != nil {
-			return nil, errInternalError(err.Error())
+			return nil, errInvalidQuery(err.Error())
 		}
 	}
 	if r.table.View != nil {
 		if err := r.server.contentRepo.CreateView(ctx, tx, r.table); err != nil {
-			return nil, errInternalError(err.Error())
+			return nil, errInvalidQuery(err.Error())
 		}
 	}
 	if err := tx.Commit(); err != nil {
@@ -2767,43 +2768,42 @@ func (h *tablesPatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	project := projectFromContext(ctx)
 	dataset := datasetFromContext(ctx)
 	table := tableFromContext(ctx)
-	var newTable bigqueryv2.Table
+	var newTable map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&newTable); err != nil {
 		errorResponse(ctx, w, errInvalid(err.Error()))
 		return
 	}
+
+	if _, found := newTable["schema"]; found {
+		errorResponse(ctx, w, errInvalid("schema updates unsupported"))
+		return
+	}
+
 	res, err := h.Handle(ctx, &tablesPatchRequest{
-		server:   server,
-		project:  project,
-		dataset:  dataset,
-		table:    table,
-		newTable: &newTable,
+		server:           server,
+		project:          project,
+		dataset:          dataset,
+		table:            table,
+		newTableMetadata: newTable,
 	})
+
 	if err != nil {
 		errorResponse(ctx, w, errInternalError(err.Error()))
 		return
 	}
 	encodeResponse(ctx, w, res)
+
 }
 
 type tablesPatchRequest struct {
-	server   *Server
-	project  *metadata.Project
-	dataset  *metadata.Dataset
-	table    *metadata.Table
-	newTable *bigqueryv2.Table
+	server           *Server
+	project          *metadata.Project
+	dataset          *metadata.Dataset
+	table            *metadata.Table
+	newTableMetadata map[string]interface{}
 }
 
 func (h *tablesPatchHandler) Handle(ctx context.Context, r *tablesPatchRequest) (*bigqueryv2.Table, error) {
-	encodedTableData, err := json.Marshal(r.newTable)
-	if err != nil {
-		return nil, err
-	}
-	var tableMetadata map[string]interface{}
-	if err := json.Unmarshal(encodedTableData, &tableMetadata); err != nil {
-		return nil, err
-	}
-
 	conn, err := r.server.connMgr.Connection(ctx, r.project.ID, r.dataset.ID)
 	if err != nil {
 		return nil, err
@@ -2813,13 +2813,17 @@ func (h *tablesPatchHandler) Handle(ctx context.Context, r *tablesPatchRequest) 
 		return nil, err
 	}
 	defer tx.RollbackIfNotCommitted()
-	if err := r.table.Update(ctx, tx.Tx(), tableMetadata); err != nil {
+	if err := r.table.Update(ctx, tx.Tx(), r.newTableMetadata); err != nil {
 		return nil, err
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
-	return r.newTable, nil
+	table, err := r.table.Content()
+	if err != nil {
+		return nil, err
+	}
+	return table, nil
 }
 
 func (h *tablesSetIamPolicyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

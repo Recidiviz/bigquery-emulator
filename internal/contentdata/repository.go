@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/goccy/go-json"
 	"github.com/goccy/go-zetasqlite"
 	"go.uber.org/zap"
 	bigqueryv2 "google.golang.org/api/bigquery/v2"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/goccy/bigquery-emulator/internal/connection"
 	"github.com/goccy/bigquery-emulator/internal/logger"
+	"github.com/goccy/bigquery-emulator/internal/metadata"
 	internaltypes "github.com/goccy/bigquery-emulator/internal/types"
 	"github.com/goccy/bigquery-emulator/types"
 )
@@ -392,6 +394,7 @@ func (r *Repository) AddTableData(ctx context.Context, tx *connection.Tx, projec
 		for _, column := range table.Columns {
 			if value, found := data[column.Name]; found {
 				isTimestampColumn := column.Type == types.TIMESTAMP
+				isJsonColumn := column.Type == types.JSON
 				inputString, isInputString := value.(string)
 
 				if isInputString && isTimestampColumn {
@@ -401,6 +404,15 @@ func (r *Repository) AddTableData(ctx context.Context, tx *connection.Tx, projec
 						values = append(values, parsedTimestamp)
 						continue
 					}
+				}
+
+				if isInputString && isJsonColumn {
+					var jsonValue interface{}
+					if err := json.Unmarshal([]byte(inputString), &jsonValue); err != nil {
+						return fmt.Errorf("failed to unmarshal json value [%s]: %w", inputString, err)
+					}
+					values = append(values, jsonValue)
+					continue
 				}
 
 				values = append(values, value)
@@ -417,7 +429,7 @@ func (r *Repository) AddTableData(ctx context.Context, tx *connection.Tx, projec
 	return nil
 }
 
-func (r *Repository) DeleteTables(ctx context.Context, tx *connection.Tx, projectID, datasetID string, tableIDs []string) error {
+func (r *Repository) DeleteTables(ctx context.Context, tx *connection.Tx, projectID, datasetID string, tables []*metadata.Table) error {
 	tx.SetProjectAndDataset(projectID, datasetID)
 	if err := tx.ContentRepoMode(); err != nil {
 		return err
@@ -426,10 +438,22 @@ func (r *Repository) DeleteTables(ctx context.Context, tx *connection.Tx, projec
 		_ = tx.MetadataRepoMode()
 	}()
 
-	for _, tableID := range tableIDs {
-		tablePath := r.tablePath(projectID, datasetID, tableID)
+	for _, table := range tables {
+		tablePath := r.tablePath(projectID, datasetID, table.ID)
 		logger.Logger(ctx).Debug("delete table", zap.String("table", tablePath))
-		query := fmt.Sprintf("DROP TABLE `%s`", tablePath)
+		tableContent, err := table.Content()
+		if err != nil {
+			return fmt.Errorf("failed to delete table %s: %w", tablePath, err)
+		}
+		var query string
+		switch tableContent.Type {
+		case string(internaltypes.MaterializedViewTableType):
+			query = fmt.Sprintf("DROP MATERIALIZED VIEW `%s`", tablePath)
+		case string(internaltypes.DefaultTableType), string(internaltypes.ViewTableType):
+			query = fmt.Sprintf("DROP %s `%s`", tableContent.Type, tablePath)
+		default:
+			return fmt.Errorf("failed to delete table with unsupported table type: %s", tableContent.Type)
+		}
 		if _, err := tx.Tx().ExecContext(ctx, query); err != nil {
 			return fmt.Errorf("failed to delete table %s: %w", query, err)
 		}

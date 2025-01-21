@@ -10,6 +10,16 @@ import (
 	bigqueryv2 "google.golang.org/api/bigquery/v2"
 )
 
+type TableType string
+
+const (
+	DefaultTableType          TableType = "TABLE"
+	ViewTableType             TableType = "VIEW"
+	ExternalTableType         TableType = "EXTERNAL"
+	MaterializedViewTableType TableType = "MATERIALIZED_VIEW"
+	SnapshotTableType         TableType = "SNAPSHOT"
+)
+
 type (
 	GetQueryResultsResponse struct {
 		JobReference *bigqueryv2.JobReference `json:"jobReference"`
