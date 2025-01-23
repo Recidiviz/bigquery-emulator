@@ -18,6 +18,7 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/linkedin/goavro/v2 v2.12.0
+	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/segmentio/parquet-go v0.0.0-20221020201645-63215c8128ff
 	go.uber.org/zap v1.21.0
 	golang.org/x/sync v0.3.0
@@ -62,7 +63,6 @@ require (
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
 	github.com/mattn/go-runewidth v0.0.9 // indirect
-	github.com/mattn/go-sqlite3 v1.14.16 // indirect
 	github.com/minio/asm2plan9s v0.0.0-20200509001527-cdd76441f9d8 // indirect
 	github.com/minio/c2goasm v0.0.0-20190812172519-36a3d3bbc4f3 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
@@ -91,4 +91,4 @@ require (
 
 replace github.com/goccy/go-zetasqlite => github.com/Recidiviz/go-zetasqlite v0.18.0-recidiviz.11
 
-replace github.com/mattn/go-sqlite3 => github.com/Recidiviz/go-sqlite3 v0.0.0-20240220230115-bffb5ad78048
+replace github.com/mattn/go-sqlite3 => github.com/Recidiviz/go-sqlite3 v0.0.0-20250123175831-0a6c44992ce2
