@@ -27,8 +27,8 @@ github.com/GoogleCloudPlatform/golang-samples/bigquery v0.0.0-20221115172052-07f
 github.com/GoogleCloudPlatform/golang-samples/bigquery v0.0.0-20221115172052-07ffb99455e8/go.mod h1:VB6n8DYUiQ07iCBJ5MTjHy8+zI5FNiNT0IDbZ00nhAc=
 github.com/JohnCGriffin/overflow v0.0.0-20211019200055-46fa312c352c h1:RGWPOewvKIROun94nF7v2cua9qP+thov/7M50KEoeSU=
 github.com/JohnCGriffin/overflow v0.0.0-20211019200055-46fa312c352c/go.mod h1:X0CRv0ky0k6m906ixxpzmDRLvX58TFUKS2eePweuyxk=
-github.com/Recidiviz/go-sqlite3 v0.0.0-20240220230115-bffb5ad78048 h1:G8qFbNf/6IWYup4//DcrwsMYvAl80qZk9hEb6Z+UfKc=
-github.com/Recidiviz/go-sqlite3 v0.0.0-20240220230115-bffb5ad78048/go.mod h1:Uh1q+B4BYcTPb+yiD3kU8Ct7aC0hY9fxUwlHK0RXw+Y=
+github.com/Recidiviz/go-sqlite3 v0.0.0-20250123175831-0a6c44992ce2 h1:o4YxmZH/Ln6CoPL9s7gHKmrBqI2vxirPs6ZVpL5yWNc=
+github.com/Recidiviz/go-sqlite3 v0.0.0-20250123175831-0a6c44992ce2/go.mod h1:Uh1q+B4BYcTPb+yiD3kU8Ct7aC0hY9fxUwlHK0RXw+Y=
 github.com/Recidiviz/go-zetasqlite v0.18.0-recidiviz.11 h1:jmzPWrrOQJREO0BCNcY6eqmfwKSB1rDQcfomWUJXr3g=
 github.com/Recidiviz/go-zetasqlite v0.18.0-recidiviz.11/go.mod h1:KVfVr9Lp7/4FH0Eeiunu1Dh274lxKJvWwpQWEkoRkuA=
 github.com/andybalholm/brotli v1.0.4 h1:V7DdXeJtZscaqfNuAdSRuRFzuiKlHSC/Zh3zl9qY3JY=
