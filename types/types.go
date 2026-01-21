@@ -1,6 +1,7 @@
 package types
 
 import (
+	"encoding/base64"
 	"fmt"
 	"reflect"
 	"strings"
@@ -607,5 +608,24 @@ func normalizeData(v interface{}, field *bigqueryv2.TableFieldSchema) (interface
 		}
 		return fields, nil
 	}
+
+	// Byte values are base64-encoded strings in the BigQuery API.
+	// If we use the value as-is and write it into a byte column,
+	// it will be encoded to base64 again, which is then improperly
+	// decoded when it is sent back to the client.
+	if field.Type == string(FieldBytes) && v != nil {
+		str, ok := v.(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid value type %T for BYTES column", v)
+		}
+
+		decoded, err := base64.StdEncoding.DecodeString(str)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode base64 bytes: %w", err)
+		}
+
+		return decoded, nil
+	}
+
 	return v, nil
 }

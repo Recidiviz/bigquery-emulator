@@ -1,0 +1,22 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch Emulator",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/cmd/bigquery-emulator/main.go",
+      "env": {
+        "CGO_ENABLED": "1",
+        "CXX": "clang++"
+      },
+      "dlvFlags": ["--check-go-version=false"],
+      "args": ["--project", "emulator"],
+      "buildFlags": "-ldflags='-X main.version=1 -X main.revision=1 -linkmode external'"
+    }
+  ]
+}
