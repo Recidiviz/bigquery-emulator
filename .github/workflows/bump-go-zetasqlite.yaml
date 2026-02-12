@@ -1,0 +1,51 @@
+name: Bump Recidiviz/go-zetasqlite Version
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'New go-zetasqlite version (e.g., v0.18.0-recidiviz.21)'
+        required: true
+        type: string
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Update go.mod with new zetasqlite version
+        run: |
+          # Update the replace directive with the new version
+          sed -i "s|github.com/Recidiviz/go-zetasqlite v.*|github.com/Recidiviz/go-zetasqlite ${{ inputs.version }}|" go.mod
+
+      - name: Run go mod tidy
+        run: go mod tidy
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: |
+            Bump Recidiviz/go-zetasqlite to ${{ inputs.version }}
+          branch: claude/bump-go-zetasqlite-${{ github.run_id }}
+          delete-branch: true
+          title: Bump `Recidiviz/go-zetasqlite` to `${{ inputs.version }}`
+          body: |
+            ## Summary
+            - Updates `github.com/Recidiviz/go-zetasqlite` to `${{ inputs.version }}`
+
+            ## Test plan
+            - [ ] Verify tests pass
+            - [ ] Verify build completes successfully
+
+            Generated with GitHub Actions workflow
+          labels: dependencies
