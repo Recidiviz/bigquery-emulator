@@ -518,4 +518,54 @@ describe('Parameterized Queries (Issue #58)', () => {
       expect(rows).toHaveLength(5);
     });
   });
+
+  describe('Issue #69: Positional Parameters', () => {
+    beforeAll(async () => {
+      // Create a test table for positional parameter testing
+      await helper.createTable(
+        { datasetId: 'test_dataset', tableId: 'positional_test' },
+        {
+          fields: [
+            { name: 'id', type: 'INTEGER', mode: 'REQUIRED' },
+            { name: 'name', type: 'STRING', mode: 'REQUIRED' },
+          ],
+        }
+      );
+
+      // Insert test data
+      await helper.insertRows(
+        { datasetId: 'test_dataset', tableId: 'positional_test' },
+        [
+          { id: 1, name: 'Alice' },
+          { id: 2, name: 'Bob' },
+          { id: 3, name: 'Charlie' },
+        ]
+      );
+    });
+
+    it('should handle positional parameter (?) in WHERE clause', async () => {
+      // Tests resolution of https://github.com/Recidiviz/bigquery-emulator/issues/69
+      // Verifies that positional query parameters work correctly and are not broken by allow_undeclared_parameters.
+      // According to ZetaSQL docs: "When allow_undeclared_parameters is true, no positional parameters may be provided."
+
+      const query = `
+        SELECT id, name
+        FROM \`${BQ_EMULATOR_PROJECT_ID}.test_dataset.positional_test\`
+        WHERE id = ?
+        ORDER BY id
+      `;
+
+      // Positional parameters are passed as an array without names
+      const options = {
+        query,
+        params: [2], // Positional parameter value
+      };
+
+      const [rows] = await client.query(options);
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0].id).toBe(2);
+      expect(rows[0].name).toBe('Bob');
+    });
+  });
 });

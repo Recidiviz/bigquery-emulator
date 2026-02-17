@@ -1797,3 +1797,52 @@ FROM UNNEST([
             ],
             job_config=job_config,
         )
+
+    def test_positional_query_parameters(self) -> None:
+        """Tests resolution of https://github.com/Recidiviz/bigquery-emulator/issues/69
+
+        Tests that positional query parameters (?) work correctly and are not broken
+        by allow_undeclared_parameters mode. The issue reported that v0.6.6-recidiviz.3.5
+        broke positional parameters because allow_undeclared_parameters was enabled globally.
+        According to ZetaSQL docs: "When allow_undeclared_parameters is true, no positional
+        parameters may be provided."
+        """
+        address = BigQueryAddress(dataset_id=_DATASET_1, table_id="positional_params_test")
+        self.create_mock_table(
+            address,
+            schema=[
+                bigquery.SchemaField("id", bigquery.enums.SqlTypeNames.INTEGER.value, mode="REQUIRED"),
+                bigquery.SchemaField("name", bigquery.enums.SqlTypeNames.STRING.value, mode="REQUIRED"),
+            ],
+        )
+        self.load_rows_into_table(
+            address,
+            data=[
+                {"id": 1, "name": "Alice"},
+                {"id": 2, "name": "Bob"},
+                {"id": 3, "name": "Charlie"},
+            ],
+        )
+
+        # Test single positional parameter in WHERE clause
+        query = f"""
+        SELECT id, name
+        FROM `{self.project_id}.{address.dataset_id}.{address.table_id}`
+        WHERE id = ?
+        ORDER BY id
+        """
+
+        # Positional parameters are specified using ScalarQueryParameter with name=None
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter(None, "INT64", 2)
+            ]
+        )
+
+        self.run_query_test(
+            query,
+            expected_result=[
+                {"id": 2, "name": "Bob"},
+            ],
+            job_config=job_config,
+        )

@@ -4143,3 +4143,207 @@ func TestViewSchemaHydration(t *testing.T) {
 		}
 	}
 }
+
+// TestQueryWithPositionalParameters tests issue #69: https://github.com/Recidiviz/bigquery-emulator/issues/69
+// Verifies that positional query parameters (?) work correctly and are not broken by allow_undeclared_parameters mode.
+// The issue reports that v0.6.6-recidiviz.3.5 broke positional parameters because allow_undeclared_parameters was
+// enabled globally. According to ZetaSQL docs: "When allow_undeclared_parameters is true, no positional parameters may be provided."
+func TestQueryWithPositionalParameters(t *testing.T) {
+	const (
+		projectID = "test"
+		datasetID = "test_dataset"
+		tableID   = "test_table"
+	)
+
+	ctx := context.Background()
+
+	bqServer, err := server.New(server.TempStorage)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create test table with sample data for testing positional parameters
+	project := types.NewProject(
+		projectID,
+		types.NewDataset(
+			datasetID,
+			types.NewTable(
+				tableID,
+				[]*types.Column{
+					types.NewColumn("id", types.INTEGER),
+					types.NewColumn("name", types.STRING),
+					types.NewColumn("value", types.FLOAT),
+					types.NewColumn("active", types.BOOLEAN),
+				},
+				types.Data{
+					{"id": 1, "name": "Alice", "value": 10.5, "active": true},
+					{"id": 2, "name": "Bob", "value": 20.7, "active": false},
+					{"id": 3, "name": "Charlie", "value": 30.2, "active": true},
+					{"id": 4, "name": "David", "value": 40.9, "active": false},
+					{"id": 5, "name": "Eve", "value": 50.1, "active": true},
+				},
+			),
+		),
+	)
+	if err := bqServer.Load(server.StructSource(project)); err != nil {
+		t.Fatal(err)
+	}
+
+	testServer := bqServer.TestServer()
+	defer func() {
+		testServer.Close()
+		bqServer.Close()
+	}()
+
+	client, err := bigquery.NewClient(
+		ctx,
+		projectID,
+		option.WithEndpoint(testServer.URL),
+		option.WithoutAuthentication(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+
+	t.Run("Multiple positional parameters", func(t *testing.T) {
+		query := client.Query(fmt.Sprintf("SELECT id, name, value FROM `%s.%s.%s` WHERE id >= ? AND id <= ? ORDER BY id", projectID, datasetID, tableID))
+		query.Parameters = []bigquery.QueryParameter{
+			{Value: 2},
+			{Value: 4},
+		}
+
+		it, err := query.Read(ctx)
+		if err != nil {
+			t.Fatalf("Query failed: %v", err)
+		}
+
+		var rows [][]bigquery.Value
+		for {
+			var row []bigquery.Value
+			if err := it.Next(&row); err != nil {
+				if err == iterator.Done {
+					break
+				}
+				t.Fatal(err)
+			}
+			rows = append(rows, row)
+		}
+
+		if len(rows) != 3 {
+			t.Fatalf("Expected 3 rows, got %d", len(rows))
+		}
+		// Verify we got ids 2, 3, 4
+		expectedIDs := []int64{2, 3, 4}
+		for i, row := range rows {
+			if row[0].(int64) != expectedIDs[i] {
+				t.Errorf("Row %d: expected id=%d, got %v", i, expectedIDs[i], row[0])
+			}
+		}
+	})
+
+	t.Run("Positional parameters with different types", func(t *testing.T) {
+		query := client.Query(fmt.Sprintf("SELECT id, name FROM `%s.%s.%s` WHERE value > ? AND active = ? ORDER BY id", projectID, datasetID, tableID))
+		query.Parameters = []bigquery.QueryParameter{
+			{Value: 25.0}, // Float
+			{Value: true}, // Boolean
+		}
+
+		it, err := query.Read(ctx)
+		if err != nil {
+			t.Fatalf("Query failed: %v", err)
+		}
+
+		var rows [][]bigquery.Value
+		for {
+			var row []bigquery.Value
+			if err := it.Next(&row); err != nil {
+				if err == iterator.Done {
+					break
+				}
+				t.Fatal(err)
+			}
+			rows = append(rows, row)
+		}
+
+		// Should get Charlie (value=30.2, active=true) and Eve (value=50.1, active=true)
+		if len(rows) != 2 {
+			t.Fatalf("Expected 2 rows, got %d", len(rows))
+		}
+		expectedNames := []string{"Charlie", "Eve"}
+		for i, row := range rows {
+			if row[1].(string) != expectedNames[i] {
+				t.Errorf("Row %d: expected name='%s', got %v", i, expectedNames[i], row[1])
+			}
+		}
+	})
+
+	t.Run("Positional parameter in LIMIT clause", func(t *testing.T) {
+		query := client.Query(fmt.Sprintf("SELECT id, name FROM `%s.%s.%s` ORDER BY id LIMIT ?", projectID, datasetID, tableID))
+		query.Parameters = []bigquery.QueryParameter{
+			{Value: 2},
+		}
+
+		it, err := query.Read(ctx)
+		if err != nil {
+			t.Fatalf("Query failed: %v", err)
+		}
+
+		var rows [][]bigquery.Value
+		for {
+			var row []bigquery.Value
+			if err := it.Next(&row); err != nil {
+				if err == iterator.Done {
+					break
+				}
+				t.Fatal(err)
+			}
+			rows = append(rows, row)
+		}
+
+		if len(rows) != 2 {
+			t.Fatalf("Expected 2 rows, got %d", len(rows))
+		}
+		// Should get first 2 rows: Alice and Bob
+		if rows[0][1].(string) != "Alice" {
+			t.Errorf("Expected first row name='Alice', got %v", rows[0][1])
+		}
+		if rows[1][1].(string) != "Bob" {
+			t.Errorf("Expected second row name='Bob', got %v", rows[1][1])
+		}
+	})
+
+	t.Run("Positional parameter with string type", func(t *testing.T) {
+		query := client.Query(fmt.Sprintf("SELECT id, name FROM `%s.%s.%s` WHERE name = ? ORDER BY id", projectID, datasetID, tableID))
+		query.Parameters = []bigquery.QueryParameter{
+			{Value: "Bob"},
+		}
+
+		it, err := query.Read(ctx)
+		if err != nil {
+			t.Fatalf("Query failed: %v", err)
+		}
+
+		var rows [][]bigquery.Value
+		for {
+			var row []bigquery.Value
+			if err := it.Next(&row); err != nil {
+				if err == iterator.Done {
+					break
+				}
+				t.Fatal(err)
+			}
+			rows = append(rows, row)
+		}
+
+		if len(rows) != 1 {
+			t.Fatalf("Expected 1 row, got %d", len(rows))
+		}
+		if rows[0][0].(int64) != 2 {
+			t.Errorf("Expected id=2, got %v", rows[0][0])
+		}
+		if rows[0][1].(string) != "Bob" {
+			t.Errorf("Expected name='Bob', got %v", rows[0][1])
+		}
+	})
+}
