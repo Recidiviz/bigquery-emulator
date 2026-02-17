@@ -42,8 +42,8 @@ github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/cloudmock v0
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/cloudmock v0.51.0/go.mod h1:SZiPHWGOOk3bl8tkevxkoiwPgsIl6CwrWcbwjfHZpdM=
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.51.0 h1:6/0iUd0xrnX7qt+mLNRwg5c0PGv8wpE8K90ryANQwMI=
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.51.0/go.mod h1:otE2jQekW/PqXk1Awf5lmfokJx4uwuqcj1ab5SpGeW0=
-github.com/Recidiviz/go-zetasqlite v0.18.0-recidiviz.20 h1:xqkjZ/Q8KEjTp+WAiFA+r2bvbmdTkiSsMEE5mpQKWHk=
-github.com/Recidiviz/go-zetasqlite v0.18.0-recidiviz.20/go.mod h1:xtUAGxrJMK0vqv5Yj/AYvrcP3g338Tbh9oTyYk1VML8=
+github.com/Recidiviz/go-zetasqlite v0.18.0-recidiviz.20.2 h1:9zokN++7L1AvMc1LAKl4W57tCQuW+Dde91hZVM65BBw=
+github.com/Recidiviz/go-zetasqlite v0.18.0-recidiviz.20.2/go.mod h1:xtUAGxrJMK0vqv5Yj/AYvrcP3g338Tbh9oTyYk1VML8=
 github.com/andybalholm/brotli v1.2.0 h1:ukwgCxwYrmACq68yiUqwIWnGY0cTPox/M94sVwToPjQ=
 github.com/andybalholm/brotli v1.2.0/go.mod h1:rzTDkvFWvIrjDXZHkuS16NPggd91W3kUSvPlQ1pLaKY=
 github.com/apache/arrow-go/v18 v18.4.1 h1:q/jVkBWCJOB9reDgaIZIdruLQUb1kbkvOnOFezVH1C4=
