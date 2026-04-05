@@ -1,32 +1,56 @@
-# syntax=docker/dockerfile:1.7
-# Override when validating a local toolchain, e.g.:
-#   docker build --build-arg GO_ZETASQL_BASE=go-zetasql:dev -t bigquery-emulator .
-# (build ../go-zetasql with tag go-zetasql:dev first — see that repo's Makefile.)
-ARG GO_ZETASQL_BASE=ghcr.io/recidiviz/go-zetasql:0.5.5-recidiviz.3
-FROM ${GO_ZETASQL_BASE} AS build
+# syntax=docker/dockerfile:1.6
+#
+# BigQuery emulator needs CGO (go-zetasql) and must be built against the same
+# go-zetasql / go-zetasqlite sources as this repo's go.mod replace lines.
+#
+# Build from the parent directory that contains all three repos side by side:
+#   go-zetasql/
+#   go-zetasqlite/
+#   bigquery-emulator/
+#
+#   cd /path/to/parent
+#   docker build -f bigquery-emulator/Dockerfile \
+#     --ignorefile bigquery-emulator/docker/parent.dockerignore \
+#     -t bigquery-emulator:local .
 
-ARG VERSION
+FROM golang:1.24-bookworm AS builder
 
-WORKDIR /work/bigquery-emulator
+RUN apt-get update && apt-get install -y --no-install-recommends \
+		clang \
+		mold \
+	&& rm -rf /var/lib/apt/lists/*
 
-COPY go.mod go.sum ./
+WORKDIR /src
+
+COPY go-zetasql /src/go-zetasql
+COPY go-zetasqlite /src/go-zetasqlite
+COPY bigquery-emulator /src/bigquery-emulator
+
+WORKDIR /src/bigquery-emulator
+
+ENV CGO_ENABLED=1
+ENV CC=clang
+ENV CXX=clang++
+ENV CGO_LDFLAGS=-fuse-ld=mold
 
 RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    go mod download
+	--mount=type=cache,target=/root/.cache/go-build \
+	go build -tags zetasql -trimpath -ldflags="-s -w" \
+		-o /out/bigquery-emulator \
+		./cmd/bigquery-emulator
 
-COPY . ./
+FROM debian:bookworm-slim
 
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    make emulator/build
+RUN apt-get update && apt-get install -y --no-install-recommends \
+		ca-certificates \
+		libstdc++6 \
+	&& rm -rf /var/lib/apt/lists/*
 
-# Since the binary uses dynamic linking we must use the same base image as the build runtime
-ARG GO_ZETASQL_BASE=ghcr.io/recidiviz/go-zetasql:0.5.5-recidiviz.3
-FROM ${GO_ZETASQL_BASE} AS emulator
+COPY --from=builder /out/bigquery-emulator /usr/local/bin/bigquery-emulator
 
-COPY --from=build /work/bigquery-emulator/bigquery-emulator /bin/bigquery-emulator
+EXPOSE 9050 9060
 
-WORKDIR /work
+ENTRYPOINT ["/usr/local/bin/bigquery-emulator"]
 
-ENTRYPOINT ["/bin/bigquery-emulator"]
+# --project is required; override at `docker run` time.
+CMD ["--project=dev", "--dataset=local", "--host=0.0.0.0", "--port=9050", "--grpc-port=9060", "--log-level=info"]
