@@ -68,6 +68,8 @@ You can also download the darwin(amd64) and linux(amd64) binaries directly from 
 
 ## Development build modes
 
+**go-googlesql Tier B / release prebuilts:** Native archive layout, `SHA256SUMS`, and downstream checklist live in [`go-googlesql` `docs/prebuilt-cgo.md`](https://github.com/vantaboard/go-googlesql/blob/main/docs/prebuilt-cgo.md) and [`CHANGELOG.md`](https://github.com/vantaboard/go-googlesql/blob/main/CHANGELOG.md). When you bump `github.com/vantaboard/go-googlesql`, pin the same version as any **GitHub Release** prebuilt tarball you unpack, or run `make prebuilt-libs` in that `go-googlesql` checkout.
+
 For normal `bigquery-emulator` work, use the default pinned dependency path so local builds do not pull sibling `go-googlesql` source into every compile:
 
 ```console
