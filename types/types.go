@@ -8,7 +8,7 @@ import (
 
 	"cloud.google.com/go/bigquery"
 	"github.com/goccy/go-json"
-	"github.com/goccy/go-zetasql/types"
+	"github.com/vantaboard/go-googlesql/types"
 	bigqueryv2 "google.golang.org/api/bigquery/v2"
 )
 
@@ -106,14 +106,14 @@ type Column struct {
 
 func (c *Column) FormatType() string {
 	var typ string
-	if c.Type.ZetaSQLTypeKind() == types.STRUCT {
+	if c.Type.TypeKind() == types.STRUCT {
 		formatTypes := make([]string, 0, len(c.Fields))
 		for _, field := range c.Fields {
 			formatTypes = append(formatTypes, fmt.Sprintf("`%s` %s", field.Name, field.FormatType()))
 		}
 		typ = fmt.Sprintf("STRUCT<%s>", strings.Join(formatTypes, ","))
 	} else {
-		typ = c.Type.ZetaSQLTypeKind().String()
+		typ = c.Type.TypeKind().String()
 	}
 	if c.Mode == RepeatedMode {
 		return fmt.Sprintf("ARRAY<%s>", typ)
@@ -212,7 +212,7 @@ func TypeFromKind(kind int) Type {
 	return ""
 }
 
-func (t Type) ZetaSQLTypeKind() types.TypeKind {
+func (t Type) TypeKind() types.TypeKind {
 	switch t {
 	case INT64:
 		return types.INT64
@@ -336,13 +336,13 @@ func (t Type) FieldType() FieldType {
 	return ""
 }
 
-func TableFieldSchemaFromZetaSQLType(name string, t types.Type) *bigqueryv2.TableFieldSchema {
+func TableFieldSchemaFromType(name string, t types.Type) *bigqueryv2.TableFieldSchema {
 	kind := t.Kind()
 	typ := string(TypeFromKind(int(kind)).FieldType())
 	switch kind {
 	case types.ARRAY:
 		at := t.AsArray()
-		elem := TableFieldSchemaFromZetaSQLType("", at.ElementType())
+		elem := TableFieldSchemaFromType("", at.ElementType())
 		return &bigqueryv2.TableFieldSchema{
 			Name:   name,
 			Type:   elem.Type,
@@ -355,7 +355,7 @@ func TableFieldSchemaFromZetaSQLType(name string, t types.Type) *bigqueryv2.Tabl
 		fields := make([]*bigqueryv2.TableFieldSchema, 0, fieldNum)
 		for i := 0; i < st.NumFields(); i++ {
 			field := st.Field(i)
-			fields = append(fields, TableFieldSchemaFromZetaSQLType(field.Name(), field.Type()))
+			fields = append(fields, TableFieldSchemaFromType(field.Name(), field.Type()))
 		}
 		return &bigqueryv2.TableFieldSchema{
 			Name:   name,

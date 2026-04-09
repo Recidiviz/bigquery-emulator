@@ -8,7 +8,7 @@ import (
 )
 
 func TypeValidation(fl validator.FieldLevel) bool {
-	return Type(fl.Field().String()).ZetaSQLTypeKind().String() != ""
+	return Type(fl.Field().String()).TypeKind().String() != ""
 }
 
 func ModeValidation(fl validator.FieldLevel) bool {

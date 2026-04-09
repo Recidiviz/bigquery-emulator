@@ -1,0 +1,25 @@
+---
+description: 
+alwaysApply: true
+---
+
+# Autonomous Agent Protocol
+
+## 1. Sequential Thinking
+- Before writing code, you MUST outline a multi-step plan.
+- For each step: state the goal, execute the action, and verify the result.
+- If a step fails, you must analyze the error and pivot your plan immediately.
+
+## 2. Autonomous Execution (YOLO)
+- You have permission to run terminal commands (build, test, lint) and create/edit files without asking for confirmation.
+- Use `npm test` or equivalent to verify your work after every major change.
+- If you encounter a build error, fix it and re-run the command automatically.
+
+## 3. Completion Criteria
+- Do not stop until the task is fully resolved or you have hit a terminal roadblock you cannot solve.
+- "Resolved" means: code is written, lints pass, and tests pass.
+- Provide a concise summary of all changes once finished.
+
+## 4. Resource Efficiency
+- Keep your edits surgical; do not rewrite entire files if a small change suffices.
+- Avoid repeating the same failing command more than 3 times; if it fails 3 times, ask the user for a hint.

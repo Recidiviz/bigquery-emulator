@@ -1,11 +1,11 @@
 # syntax=docker/dockerfile:1.6
 #
-# BigQuery emulator needs CGO (go-zetasql) and must be built against the same
-# go-zetasql / go-zetasqlite sources as this repo's go.mod replace lines.
+# BigQuery emulator needs CGO (go-googlesql) and must be built against the same
+# go-googlesql / go-googlesqlite sources as this repo's go.mod replace lines.
 #
 # Build from the parent directory that contains all three repos side by side:
-#   go-zetasql/
-#   go-zetasqlite/
+#   go-googlesql/
+#   go-googlesqlite/
 #   bigquery-emulator/
 #
 #   cd /path/to/parent
@@ -22,8 +22,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /src
 
-COPY go-zetasql /src/go-zetasql
-COPY go-zetasqlite /src/go-zetasqlite
+COPY go-googlesql /src/go-googlesql
+COPY go-googlesqlite /src/go-googlesqlite
 COPY bigquery-emulator /src/bigquery-emulator
 
 WORKDIR /src/bigquery-emulator
@@ -35,7 +35,7 @@ ENV CGO_LDFLAGS=-fuse-ld=mold
 
 RUN --mount=type=cache,target=/go/pkg/mod \
 	--mount=type=cache,target=/root/.cache/go-build \
-	go build -tags zetasql -trimpath -ldflags="-s -w" \
+	go build -tags googlesql -trimpath -ldflags="-s -w" \
 		-o /out/bigquery-emulator \
 		./cmd/bigquery-emulator
 

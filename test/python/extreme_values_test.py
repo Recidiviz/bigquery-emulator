@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import Any, Dict, Iterable
 
 import grpc
-from google.cloud import bigquery, bigquery_storage
+from google.cloud import bigquery_storage
 from google.cloud.bigquery_storage_v1.services.big_query_read.transports import (
     BigQueryReadGrpcTransport,
 )
@@ -70,8 +70,6 @@ class TestExtremeValues(BigQueryEmulatorTestCase):
         channel.close()
 
     def test_timestamp_min_max(self) -> None:
-        """Tests resolution of https://github.com/goccy/go-zetasqlite/issues/132
-        and https://github.com/goccy/bigquery-emulator/issues/262"""
         self._run_test_with_both_apis(
             """SELECT TIMESTAMP '0001-01-01 00:00:00.000000+00' AS min_ts, TIMESTAMP '9999-12-31 23:59:59.999999+00' AS max_ts""",
             expected_result=[

@@ -1,11 +1,11 @@
 # Docker image (local build)
 
-The emulator links **go-zetasql** (CGO + C++) and **go-zetasqlite**. Your `go.mod` uses `replace` to sibling modules, so the image is built from a **parent directory** that contains all three repositories:
+The emulator links **go-googlesql** (CGO + C++) and **go-googlesqlite**. Your `go.mod` uses `replace` to sibling modules, so the image is built from a **parent directory** that contains all three repositories:
 
 ```text
 your-workspace/
-  go-zetasql/
-  go-zetasqlite/
+  go-googlesql/
+  go-googlesqlite/
   bigquery-emulator/    ← this repo
 ```
 
@@ -13,13 +13,13 @@ your-workspace/
 
 From the **parent** directory (e.g. `~/Code` if your clones live there):
 
-1. **One-time:** install a workspace-root `.dockerignore` so Docker does not try to send Bazel/cache trees under `go-zetasql` (often root-owned → `permission denied`):
+1. **One-time:** install a workspace-root `.dockerignore` so Docker does not try to send Bazel/cache trees under `go-googlesql` (often root-owned → `permission denied`):
 
    ```bash
    ./bigquery-emulator/docker/prep-context.sh
    ```
 
-   This writes `../.dockerignore` relative to `bigquery-emulator` (the directory that contains `go-zetasql`, `go-zetasqlite`, and `bigquery-emulator`). It refuses to overwrite an existing `.dockerignore` that differs; merge by hand or remove the file first.
+   This writes `../.dockerignore` relative to `bigquery-emulator` (the directory that contains `go-googlesql`, `go-googlesqlite`, and `bigquery-emulator`). It refuses to overwrite an existing `.dockerignore` that differs; merge by hand or remove the file first.
 
 2. **Build the image:**
 

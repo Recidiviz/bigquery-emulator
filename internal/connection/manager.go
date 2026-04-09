@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/goccy/go-zetasqlite"
+	"github.com/vantaboard/go-googlesqlite"
 )
 
 const (
@@ -53,7 +53,7 @@ func NewManager(ctx context.Context, db *sql.DB) (*Manager, error) {
 		}
 
 		managedConnection := &ManagedConnection{
-			zetasqliteConnection: conn,
+			googlesqliteConnection: conn,
 			stmts:                make(map[string]*sql.Stmt),
 			queries:              []string{},
 			manager:              manager,
@@ -133,12 +133,12 @@ func (t *Tx) SetProjectAndDataset(projectID, datasetID string) {
 }
 
 func (t *Tx) MetadataRepoMode() error {
-	if err := t.conn.zetasqliteConnection.Raw(func(c interface{}) error {
-		zetasqliteConn, ok := c.(*zetasqlite.ZetaSQLiteConn)
+	if err := t.conn.googlesqliteConnection.Raw(func(c interface{}) error {
+		googlesqliteConn, ok := c.(*googlesqlite.iteConn)
 		if !ok {
-			return fmt.Errorf("failed to get ZetaSQLiteConn from %T", c)
+			return fmt.Errorf("failed to get iteConn from %T", c)
 		}
-		_ = zetasqliteConn.SetNamePath([]string{})
+		_ = googlesqliteConn.SetNamePath([]string{})
 		return nil
 	}); err != nil {
 		return fmt.Errorf("failed to setup connection: %w", err)
@@ -147,18 +147,18 @@ func (t *Tx) MetadataRepoMode() error {
 }
 
 func (t *Tx) ContentRepoMode() error {
-	if err := t.conn.zetasqliteConnection.Raw(func(c interface{}) error {
-		zetasqliteConn, ok := c.(*zetasqlite.ZetaSQLiteConn)
+	if err := t.conn.googlesqliteConnection.Raw(func(c interface{}) error {
+		googlesqliteConn, ok := c.(*googlesqlite.iteConn)
 		if !ok {
-			return fmt.Errorf("failed to get ZetaSQLiteConn from %T", c)
+			return fmt.Errorf("failed to get iteConn from %T", c)
 		}
 		if t.conn.DatasetID == "" {
-			_ = zetasqliteConn.SetNamePath([]string{t.conn.ProjectID})
+			_ = googlesqliteConn.SetNamePath([]string{t.conn.ProjectID})
 		} else {
-			_ = zetasqliteConn.SetNamePath([]string{t.conn.ProjectID, t.conn.DatasetID})
+			_ = googlesqliteConn.SetNamePath([]string{t.conn.ProjectID, t.conn.DatasetID})
 		}
 		const maxNamePath = 3 // projectID and datasetID and tableID
-		zetasqliteConn.SetMaxNamePath(maxNamePath)
+		googlesqliteConn.SetMaxNamePath(maxNamePath)
 		return nil
 	}); err != nil {
 		return fmt.Errorf("failed to setup connection: %w", err)
@@ -167,7 +167,7 @@ func (t *Tx) ContentRepoMode() error {
 }
 
 type ManagedConnection struct {
-	zetasqliteConnection *sql.Conn
+	googlesqliteConnection *sql.Conn
 	stmts                map[string]*sql.Stmt
 	queries              []string
 	mu                   sync.RWMutex
@@ -196,7 +196,7 @@ func (c *ManagedConnection) Close() (err error) {
 			err = closeErr
 		}
 	}
-	if closeErr := c.zetasqliteConnection.Close(); closeErr != nil && err == nil {
+	if closeErr := c.googlesqliteConnection.Close(); closeErr != nil && err == nil {
 		err = closeErr
 	}
 	return
@@ -208,13 +208,13 @@ func (c *ManagedConnection) ConfigureScope(projectID, datasetID string) *Managed
 	return c
 }
 
-// Raw executes the given function with the underlying ZetaSQLite connection.
+// Raw executes the given function with the underlying ite connection.
 func (c *ManagedConnection) Raw(fn func(interface{}) error) error {
-	return c.zetasqliteConnection.Raw(fn)
+	return c.googlesqliteConnection.Raw(fn)
 }
 
 func (c *ManagedConnection) Begin(ctx context.Context) (*Tx, error) {
-	tx, err := c.zetasqliteConnection.BeginTx(ctx, nil)
+	tx, err := c.googlesqliteConnection.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -247,16 +247,16 @@ func (m *Manager) GetStatement(ctx context.Context, tx *sql.Tx, name string) (*s
 	}
 
 	// Transaction was created externally, prepare statement on the fly (this ideally never happens)
-	ctx = zetasqlite.WithQueryFormattingDisabled(ctx)
+	ctx = googlesqlite.WithQueryFormattingDisabled(ctx)
 	return tx.PrepareContext(ctx, name)
 }
 
 func (m *Manager) PrepareQueries(queries []string) error {
 	for _, conn := range m.connPool {
 		// Prepare specified SQLite queries for this connection
-		ctx := zetasqlite.WithQueryFormattingDisabled(context.Background())
+		ctx := googlesqlite.WithQueryFormattingDisabled(context.Background())
 		for _, query := range queries {
-			stmt, err := conn.zetasqliteConnection.PrepareContext(ctx, query)
+			stmt, err := conn.googlesqliteConnection.PrepareContext(ctx, query)
 			if err != nil {
 				return fmt.Errorf("failed to prepare statement %s: %w", query, err)
 			}

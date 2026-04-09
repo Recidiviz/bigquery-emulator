@@ -1,0 +1,10 @@
+{
+  "go.toolsEnvVars": {
+    "CGO_ENABLED": "1",
+    "CXX": "clang++",
+    "GOMAXPROCS": "2",
+    "GOFLAGS": "-p=1",
+    "GOCACHE": "${env:HOME}/.cache/go-googlesql/gocache",
+    "GOMODCACHE": "${env:HOME}/.cache/go-googlesql/gomodcache"
+  }
+}

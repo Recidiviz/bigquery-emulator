@@ -1,19 +1,19 @@
 # Use with: docker build -f bigquery-emulator/Dockerfile \
 #   --ignorefile bigquery-emulator/docker/parent.dockerignore -t bigquery-emulator:local .
-# Context: parent directory containing go-zetasql, go-zetasqlite, bigquery-emulator.
+# Context: parent directory containing go-googlesql, go-googlesqlite, bigquery-emulator.
 #
 # Recommended: always pass --ignorefile. Without it, Docker may fail to read
-# root-owned Bazel/cache dirs under go-zetasql (permission denied).
+# root-owned Bazel/cache dirs under go-googlesql (permission denied).
 
 **/.git
 **/.gitmodules
 
 # Local Bazel / cache trees (often not readable by Docker daemon user)
-go-zetasql/internal/cmd/updater/cache/
+go-googlesql/internal/cmd/updater/cache/
 
 # Heavy / reproducible from go mod inside the image
-go-zetasql/internal/cmd/updater/zetasql/bazel-*
-go-zetasql/internal/cmd/updater/zetasql/zetasql/**/__pycache__
+go-googlesql/internal/cmd/updater/googlesql/bazel-*
+go-googlesql/internal/cmd/updater/googlesql/googlesql/**/__pycache__
 
 # Optional: trim test and IDE noise (uncomment if builds are slow)
 # **/*_test.go

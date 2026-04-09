@@ -1,0 +1,135 @@
+---
+alwaysApply: true
+---
+
+# Auto-Commit Workflow
+
+After completing a logical unit of work, automatically stage and commit the changes. Do not wait for the user to request commits.
+
+## Runtime Instruction Exception
+
+If the active Cursor runtime/session instructions explicitly say not to commit unless the user requests it, ignore this rule's auto-commit behavior for that session.
+
+Examples of higher-priority runtime instructions to obey instead:
+- `Only create commits when requested by the user.`
+- `NEVER commit changes unless the user explicitly asks you to.`
+
+When those instructions are present, continue to prepare changes normally but do not stage or create commits until the user explicitly asks.
+
+## When to Commit
+
+Commit after any of these events:
+
+- Creating a new file or component
+- Completing a bug fix
+- Adding or modifying a feature
+- Refactoring code
+- Updating configuration
+- Adding/updating tests
+- Updating dependencies
+
+## Commit Grouping Rules
+
+**DO group together:**
+
+- A Go file + its corresponding test file
+- Related handler + route changes
+- Multiple files changed as part of one refactor
+- Model changes + code that uses the model
+
+**DO NOT group together:**
+
+- Unrelated bug fixes (separate commits)
+- Feature work + unrelated cleanup
+- Different features, even if worked on in the same session
+- Dependency updates + feature code
+
+## Staging in Chunks
+
+Stage by **hunk** (chunk) when a file has changes from more than one context (e.g., another agent or a different logical change). This avoids committing unrelated edits in the same file.
+
+- **When to stage by chunk:** A file is modified but only some of the changes belong to the current logical unit of work; other edits in that file are from a different context.
+- **How:** Use patch mode to stage only the relevant hunks:
+  - `git add -p <file>` — review and stage selected hunks for that file (use `y` to stage a hunk, `n` to skip, `s` to split a hunk, `q` to quit).
+  - Stage only hunks that belong to the commit you are making.
+- **When to stage the whole file:** If every change in the file is part of the same logical unit, `git add <file>` is fine.
+- **New or deleted files:** Stage the whole file; chunk staging applies to modified files where context is mixed.
+
+## Commit Message Format
+
+Use conventional commits format:
+
+```
+<type>(<scope>): <description>
+
+[optional body with details]
+```
+
+**Types:**
+- `feat`: New feature
+- `fix`: Bug fix
+- `refactor`: Code restructuring without behavior change
+- `style`: Formatting, whitespace
+- `docs`: Documentation only
+- `test`: Adding/updating tests
+- `chore`: Build, config, dependencies
+
+**Scope:** The package or area affected (e.g., `api`, `report`, `charts`, `tables`)
+
+**Examples:**
+- `feat(charts): add grouped bar chart rendering`
+- `fix(api): handle nil pointer in report handler`
+- `refactor(report): extract font caching logic`
+- `chore(deps): update gopdf module`
+
+## Breaking or Non-Backwards-Compatible Changes
+
+When a change is **breaking** or **not backwards compatible** (e.g. removing or changing public APIs, changing request/response shapes, dropping support), add a breaking change footer to the commit body using one of the note keywords recognized by semantic-release (see `.releaserc.yml`):
+
+- `BREAKING CHANGE`
+- `BREAKING CHANGES`
+- `BREAKING`
+
+**Format:** Use a blank line after the subject, then the keyword followed by a short description of the break and how to migrate:
+
+```
+feat(api): remove deprecated /v1/legacy endpoint
+
+BREAKING CHANGE: The /v1/legacy endpoint has been removed. Use /v2/export instead.
+```
+
+Use this for: removed or renamed APIs, changed function signatures, schema or contract changes, dropped compatibility, or any change that would require callers to update their code or config.
+
+## Execution
+
+1. After completing work, identify which changes belong together logically (your context only).
+2. For each modified file, decide: do all edits in this file belong to this commit, or are some from another context?
+   - **All from this context:** Stage the whole file: `git add <file>`.
+   - **Mixed contexts:** Stage in chunks: `git add -p <file>` and stage only the hunks for this commit.
+3. Stage only the related files or hunks (see **Staging in Chunks** above).
+4. Commit with a descriptive message.
+5. Repeat for any remaining unrelated changes (other files or other hunks in the same file).
+
+**Command pattern (whole files):**
+
+```bash
+git add path/to/related/file1.go path/to/related/file2.go
+git commit -m "type(scope): description"
+```
+
+**Command pattern (chunks in a file with mixed context):**
+
+```bash
+git add -p path/to/file_with_mixed_edits.go
+# then interactively: y for hunks to include, n to skip, s to split, q to quit
+git commit -m "type(scope): description"
+```
+
+## Important Notes
+
+- Always request `git_write` permissions when running git commands
+- If unsure whether changes are related, prefer smaller commits
+- Check `git status` before committing to see all modified files
+- Never use `git add .` or `git add -A` — always stage specific files or hunks
+- When multiple agents may be working on the same file, stage in chunks so only this context’s edits are committed
+- If the user has uncommitted changes from before you started, ask before including them

@@ -165,7 +165,7 @@ QUALIFY ROW_NUMBER() OVER (ORDER BY b DESC) = 1;
 
     def test_array_first_null(self) -> None:
         self.run_query_test(
-            f"SELECT GENERATE_DATE_ARRAY(NULL, NULL, INTERVAL 1 DAY) AS result",
+            "SELECT GENERATE_DATE_ARRAY(NULL, NULL, INTERVAL 1 DAY) AS result",
             expected_result=[{"result": []}],
         )
 
@@ -439,7 +439,6 @@ FROM UNNEST([STRUCT(1 AS a, 2 AS b)]);""",
         )
 
     def test_safe_parse_date_on_julian_date(self) -> None:
-        """Tests resolution of goccy/go-zetasqlite#196"""
         self.run_query_test(
             """SELECT SAFE.PARSE_DATE('%y%j', '85001') AS a;""",
             expected_result=[{"a": date(1985, 1, 1)}],
@@ -1063,8 +1062,6 @@ FROM UNNEST([
                 assert False, "Unsupported format"
 
     def test_timestamp_min_max(self) -> None:
-        """Tests resolution of https://github.com/goccy/go-zetasqlite/issues/132
-        and https://github.com/goccy/bigquery-emulator/issues/262"""
         self.run_query_test(
             """SELECT TIMESTAMP '0001-01-01 00:00:00.000000+00', TIMESTAMP '9999-12-31 23:59:59.999999+00'""",
             expected_result=[
@@ -1804,7 +1801,7 @@ FROM UNNEST([
         Tests that positional query parameters (?) work correctly and are not broken
         by allow_undeclared_parameters mode. The issue reported that v0.6.6-recidiviz.3.5
         broke positional parameters because allow_undeclared_parameters was enabled globally.
-        According to ZetaSQL docs: "When allow_undeclared_parameters is true, no positional
+        According to GoogleSQL docs: "When allow_undeclared_parameters is true, no positional
         parameters may be provided."
         """
         address = BigQueryAddress(dataset_id=_DATASET_1, table_id="positional_params_test")

@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/goccy/go-json"
-	"github.com/goccy/go-zetasqlite"
+	"github.com/vantaboard/go-googlesqlite"
 	"go.uber.org/zap"
 	bigqueryv2 "google.golang.org/api/bigquery/v2"
 
@@ -41,17 +41,17 @@ func (r *Repository) getConnection(ctx context.Context, projectID, datasetID str
 		return nil, fmt.Errorf("failed to get connection: %w", err)
 	}
 	if err := conn.Raw(func(c interface{}) error {
-		zetasqliteConn, ok := c.(*zetasqlite.ZetaSQLiteConn)
+		googlesqliteConn, ok := c.(*googlesqlite.iteConn)
 		if !ok {
-			return fmt.Errorf("failed to get ZetaSQLiteConn from %T", c)
+			return fmt.Errorf("failed to get iteConn from %T", c)
 		}
 		if datasetID == "" {
-			_ = zetasqliteConn.SetNamePath([]string{projectID})
+			_ = googlesqliteConn.SetNamePath([]string{projectID})
 		} else {
-			_ = zetasqliteConn.SetNamePath([]string{projectID, datasetID})
+			_ = googlesqliteConn.SetNamePath([]string{projectID, datasetID})
 		}
 		const maxNamePath = 3 // projectID and datasetID and tableID
-		zetasqliteConn.SetMaxNamePath(maxNamePath)
+		googlesqliteConn.SetMaxNamePath(maxNamePath)
 		return nil
 	}); err != nil {
 		return nil, fmt.Errorf("failed to setup connection: %w", err)
@@ -107,7 +107,7 @@ func (r *Repository) CreateTable(ctx context.Context, tx *connection.Tx, table *
 }
 
 func getSchemaFromResult(result sql.Result) (*bigqueryv2.TableSchema, error) {
-	changedCatalog, err := zetasqlite.ChangedCatalogFromResult(result)
+	changedCatalog, err := googlesqlite.ChangedCatalogFromResult(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get changed catalog: %w", err)
 	}
@@ -117,11 +117,11 @@ func getSchemaFromResult(result sql.Result) (*bigqueryv2.TableSchema, error) {
 	createdTable := changedCatalog.Table.Added[0]
 	fields := make([]*bigqueryv2.TableFieldSchema, 0, len(createdTable.Columns))
 	for _, col := range createdTable.Columns {
-		zetasqlType, err := col.Type.ToZetaSQLType()
+		googlesqlType, err := col.Type.ToType()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get zetasql type: %w", err)
+			return nil, fmt.Errorf("failed to get googlesql type: %w", err)
 		}
-		fields = append(fields, types.TableFieldSchemaFromZetaSQLType(col.Name, zetasqlType))
+		fields = append(fields, types.TableFieldSchemaFromType(col.Name, googlesqlType))
 	}
 
 	return &bigqueryv2.TableSchema{Fields: fields}, nil
@@ -161,7 +161,7 @@ func (r *Repository) encodeSchemaField(field *bigqueryv2.TableFieldSchema) strin
 		}
 		elem = fmt.Sprintf("STRUCT<%s>", strings.Join(types, ","))
 	} else {
-		elem = types.Type(field.Type).ZetaSQLTypeKind().String()
+		elem = types.Type(field.Type).TypeKind().String()
 	}
 	if field.Mode == "REPEATED" {
 		return fmt.Sprintf("ARRAY<%s>", elem)
@@ -196,13 +196,13 @@ func (r *Repository) Query(ctx context.Context, tx *connection.Tx, projectID, da
 		zap.String("query", query),
 		zap.Any("values", values),
 	)
-	// We must pass the query parameters to zetasqlite so the analyzer uses the proper typings
+	// We must pass the query parameters to googlesqlite so the analyzer uses the proper typings
 	if err := tx.Conn().Raw(func(c interface{}) error {
-		zetasqliteConn, ok := c.(*zetasqlite.ZetaSQLiteConn)
+		googlesqliteConn, ok := c.(*googlesqlite.iteConn)
 		if !ok {
-			return fmt.Errorf("failed to get ZetaSQLiteConn from %T", c)
+			return fmt.Errorf("failed to get iteConn from %T", c)
 		}
-		zetasqliteConn.SetQueryParameters(params)
+		googlesqliteConn.SetQueryParameters(params)
 		return nil
 	}); err != nil {
 		return nil, fmt.Errorf("failed to setup connection: %w", err)
@@ -212,7 +212,7 @@ func (r *Repository) Query(ctx context.Context, tx *connection.Tx, projectID, da
 		return nil, err
 	}
 	defer rows.Close()
-	changedCatalog, err := zetasqlite.ChangedCatalogFromRows(rows)
+	changedCatalog, err := googlesqlite.ChangedCatalogFromRows(rows)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get changed catalog: %w", err)
 	}
@@ -229,15 +229,15 @@ func (r *Repository) Query(ctx context.Context, tx *connection.Tx, projectID, da
 		return nil, fmt.Errorf("failed to get column types: %w", err)
 	}
 	for i := 0; i < len(columnTypes); i++ {
-		typ, err := zetasqlite.UnmarshalDatabaseTypeName(columnTypes[i].DatabaseTypeName())
+		typ, err := googlesqlite.UnmarshalDatabaseTypeName(columnTypes[i].DatabaseTypeName())
 		if err != nil {
 			return nil, fmt.Errorf("failed to get type from database type name: %w", err)
 		}
-		zetasqlType, err := typ.ToZetaSQLType()
+		googlesqlType, err := typ.ToType()
 		if err != nil {
 			return nil, err
 		}
-		fields = append(fields, types.TableFieldSchemaFromZetaSQLType(colNames[i], zetasqlType))
+		fields = append(fields, types.TableFieldSchemaFromType(colNames[i], googlesqlType))
 	}
 
 	var (
@@ -330,7 +330,7 @@ func (r *Repository) queryParameterValueToGoValue(value *bigqueryv2.QueryParamet
 	return value.Value, nil
 }
 
-// zetasqlite returns map[string]interface{} value as struct value, also returns []interface{} value as array value.
+// googlesqlite returns map[string]interface{} value as struct value, also returns []interface{} value as array value.
 // we need to convert them to specifically TableRow and TableCell type.
 // schema provides the field ordering for struct types to ensure deterministic field order.
 func (r *Repository) convertValueToCell(value interface{}, schema *bigqueryv2.TableFieldSchema) (*internaltypes.TableCell, error) {
@@ -491,7 +491,7 @@ func (r *Repository) AddTableData(ctx context.Context, tx *connection.Tx, projec
 				inputString, isInputString := value.(string)
 
 				if isInputString && isTimestampColumn {
-					parsedTimestamp, err := zetasqlite.TimeFromTimestampValue(inputString)
+					parsedTimestamp, err := googlesqlite.TimeFromTimestampValue(inputString)
 					// If we could parse the timestamp, use it when inserting, otherwise fallback to the supplied value
 					if err == nil {
 						values = append(values, parsedTimestamp)

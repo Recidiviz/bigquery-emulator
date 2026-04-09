@@ -13,8 +13,8 @@ require (
 	github.com/go-playground/validator/v10 v10.11.0
 	github.com/goccy/go-json v0.10.5
 	github.com/goccy/go-yaml v1.17.1
-	github.com/goccy/go-zetasql v0.5.5
-	github.com/goccy/go-zetasqlite v0.17.3
+	github.com/vantaboard/go-googlesql v0.5.5
+	github.com/vantaboard/go-googlesqlite v0.17.3
 	github.com/google/go-cmp v0.7.0
 	github.com/googleapis/gax-go/v2 v2.14.1
 	github.com/gorilla/mux v1.8.0
@@ -118,6 +118,6 @@ require (
 	modernc.org/sqlite v1.37.0
 )
 
-replace github.com/goccy/go-zetasql => ../go-zetasql
+replace github.com/vantaboard/go-googlesql => ../go-googlesql
 
-replace github.com/goccy/go-zetasqlite => ../go-zetasqlite
+replace github.com/vantaboard/go-googlesqlite => ../go-googlesqlite

@@ -24,7 +24,7 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/goccy/go-json"
-	"github.com/goccy/go-zetasqlite"
+	"github.com/vantaboard/go-googlesqlite"
 	"go.uber.org/zap"
 	bigqueryv2 "google.golang.org/api/bigquery/v2"
 	"google.golang.org/api/iterator"
@@ -2215,7 +2215,7 @@ func (h *jobsInsertHandler) Handle(ctx context.Context, r *jobsInsertRequest) (*
 	return job, nil
 }
 
-func syncCatalog(ctx context.Context, server *Server, cat *zetasqlite.ChangedCatalog) error {
+func syncCatalog(ctx context.Context, server *Server, cat *googlesqlite.ChangedCatalog) error {
 	for _, table := range cat.Table.Added {
 		if err := addTableMetadata(ctx, server, table); err != nil {
 			return err
@@ -2229,7 +2229,7 @@ func syncCatalog(ctx context.Context, server *Server, cat *zetasqlite.ChangedCat
 	return nil
 }
 
-func addTableMetadata(ctx context.Context, server *Server, spec *zetasqlite.TableSpec) error {
+func addTableMetadata(ctx context.Context, server *Server, spec *googlesqlite.TableSpec) error {
 	if len(spec.NamePath) != 3 {
 		return fmt.Errorf("unexpected table name path: %v", spec.NamePath)
 	}
@@ -2249,11 +2249,11 @@ func addTableMetadata(ctx context.Context, server *Server, spec *zetasqlite.Tabl
 	}
 	fields := make([]*bigqueryv2.TableFieldSchema, 0, len(spec.Columns))
 	for _, column := range spec.Columns {
-		zetasqlType, err := column.Type.ToZetaSQLType()
+		googlesqlType, err := column.Type.ToType()
 		if err != nil {
 			return err
 		}
-		fields = append(fields, types.TableFieldSchemaFromZetaSQLType(column.Name, zetasqlType))
+		fields = append(fields, types.TableFieldSchemaFromType(column.Name, googlesqlType))
 	}
 	conn := connectionFromContext(ctx).ConfigureScope(projectID, datasetID)
 	tx, err := conn.Begin(ctx)
@@ -2283,7 +2283,7 @@ func addTableMetadata(ctx context.Context, server *Server, spec *zetasqlite.Tabl
 	return nil
 }
 
-func deleteTableMetadata(ctx context.Context, server *Server, spec *zetasqlite.TableSpec) error {
+func deleteTableMetadata(ctx context.Context, server *Server, spec *googlesqlite.TableSpec) error {
 	if len(spec.NamePath) != 3 {
 		return fmt.Errorf("unexpected table name path: %v", spec.NamePath)
 	}

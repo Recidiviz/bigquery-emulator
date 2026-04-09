@@ -47,7 +47,7 @@ func New(storage Storage) (*Server, error) {
 			return os.Remove(f.Name())
 		}
 	}
-	db, err := sql.Open("zetasqlite", string(storage))
+	db, err := sql.Open("googlesqlite", string(storage))
 	if err != nil {
 		return nil, err
 	}

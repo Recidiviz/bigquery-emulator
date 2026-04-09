@@ -127,7 +127,7 @@ func TestSimpleQuery(t *testing.T) {
 		}
 	})
 
-	// End-to-end check for ZetaSQL math builtins wired through go-zetasqlite (e.g. COTH from 2022.02.1+).
+	// End-to-end check for  math builtins wired through go-googlesqlite (e.g. COTH from 2022.02.1+).
 	t.Run("coth_math_function", func(t *testing.T) {
 		query := client.Query("SELECT COTH(1.0) AS c")
 		it, err := query.Read(ctx)
@@ -193,7 +193,7 @@ func TestSimpleQuery(t *testing.T) {
 		}
 	})
 
-	// Googlesql 2023.04.1→2023.08.1 scalar builtins via go-zetasqlite (PI, ARRAY_FIRST_N, JSON_REMOVE, etc.).
+	// Googlesql 2023.04.1→2023.08.1 scalar builtins via go-googlesqlite (PI, ARRAY_FIRST_N, JSON_REMOVE, etc.).
 	t.Run("googlesql_2023_08_builtins", func(t *testing.T) {
 		query := client.Query(`SELECT PI() AS p, ARRAY_FIRST_N([1, 2, 3, 4], 2) AS a, JSON_REMOVE(PARSE_JSON('{"x":1,"y":2}'), '$.x') AS j`)
 		it, err := query.Read(ctx)
@@ -1831,10 +1831,10 @@ SELECT %s([
 }
 
 func TestContentEncoding(t *testing.T) {
-	// TODO: With ZetaSQL 2024.06.1, gzip job POST triggers an absl flat_hash
+	// TODO: With  2024.06.1, gzip job POST triggers an absl flat_hash
 	// assertion inside the parser CGO shard (probe_seq mask). Re-enable once
 	// the root cause is fixed upstream or in amalgamation/linking.
-	t.Skip("skipped: parser absl assertion on gzip job path with ZetaSQL 2024.06.1")
+	t.Skip("skipped: parser absl assertion on gzip job path with  2024.06.1")
 }
 
 func TestCreateTempTable(t *testing.T) {
@@ -4200,7 +4200,7 @@ func TestViewSchemaHydration(t *testing.T) {
 // TestQueryWithPositionalParameters tests issue #69: https://github.com/Recidiviz/bigquery-emulator/issues/69
 // Verifies that positional query parameters (?) work correctly and are not broken by allow_undeclared_parameters mode.
 // The issue reports that v0.6.6-recidiviz.3.5 broke positional parameters because allow_undeclared_parameters was
-// enabled globally. According to ZetaSQL docs: "When allow_undeclared_parameters is true, no positional parameters may be provided."
+// enabled globally. According to  docs: "When allow_undeclared_parameters is true, no positional parameters may be provided."
 func TestQueryWithPositionalParameters(t *testing.T) {
 	const (
 		projectID = "test"

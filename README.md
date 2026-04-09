@@ -35,7 +35,7 @@ For example, it has the following features.
 - Templated Argument Function
 - JavaScript UDF
 
-If you want to know which specific features are supported, please see [here](https://github.com/Recidiviz/go-zetasqlite#status)
+If you want to know which specific features are supported, please see [here](https://github.com/vantaboard/go-googlesqlite#status)
 
 # Sponsor 
 
@@ -48,8 +48,8 @@ If Go is installed, you can install the latest version with the following comman
 $ go install github.com/Recidiviz/bigquery-emulator/cmd/bigquery-emulator@latest
 ```
 
-The BigQuery emulator depends on [go-zetasql](https://github.com/goccy/go-zetasql).
-This library takes a very long time to install because it automatically builds the ZetaSQL library during install.
+The BigQuery emulator depends on [go-googlesql](https://github.com/vantaboard/go-googlesql).
+This library takes a very long time to install because it automatically builds the GoogleSQL library during install.
 It may look like it hangs because it does not log anything during the build process, but if the `clang` process is running in the background, it is working fine, so just wait it out.
 Also, for this reason, the following environment variables must be enabled for installation.
 
@@ -68,14 +68,14 @@ You can also download the darwin(amd64) and linux(amd64) binaries directly from 
 
 ## Development build modes
 
-For normal `bigquery-emulator` work, use the default pinned dependency path so local builds do not pull sibling `go-zetasql` source into every compile:
+For normal `bigquery-emulator` work, use the default pinned dependency path so local builds do not pull sibling `go-googlesql` source into every compile:
 
 ```console
 $ make emulator/build
 $ make docker/build
 ```
 
-If you are actively editing `../go-zetasql` or `../go-zetasqlite`, use the linked-source targets instead:
+If you are actively editing `../go-googlesql` or `../go-googlesqlite`, use the linked-source targets instead:
 
 ```console
 $ make emulator/build-linked
@@ -84,26 +84,26 @@ $ make docker/build-linked
 
 The linked targets opt into `go.work.linked` and the linked Docker build so the slower cross-repo rebuild path is only used when needed.
 
-For **repeat** host builds (`emulator/build` or `emulator/build-linked`), use **`CC="ccache clang"`** and **`CXX="ccache clang++"`** (and on **Linux**, **`mold`** on **`PATH`** for faster linking—same idea as [go-zetasql](https://github.com/goccy/go-zetasql#development)), or rely on **`make test/linux`** below for CI-parity compilation inside **`go-zetasql:dev`**.
+For **repeat** host builds (`emulator/build` or `emulator/build-linked`), use **`CC="ccache clang"`** and **`CXX="ccache clang++"`** (and on **Linux**, **`mold`** on **`PATH`** for faster linking—same idea as [go-googlesql](https://github.com/vantaboard/go-googlesql#development)), or rely on **`make test/linux`** below for CI-parity compilation inside **`go-googlesql:dev`**.
 
-### Local `go-zetasql` base image (upgrade / CGO cache)
+### Local `go-googlesql` base image (upgrade / CGO cache)
 
-Docker builds use a **pinned Go+clang** base (`GO_ZETASQL_BASE`, default `ghcr.io/recidiviz/go-zetasql:0.5.5-recidiviz.3`). To validate against a **local** toolchain image you built from the `go-zetasql` repo (for example tag `go-zetasql:dev`), override the Makefile variable or pass a build arg:
+Docker builds use a **pinned Go+clang** base (`GO_GOOGLESQL_BASE`, default `ghcr.io/vantaboard/go-googlesql:0.5.5-recidiviz.3`). To validate against a **local** toolchain image you built from the `go-googlesql` repo (for example tag `go-googlesql:dev`), override the Makefile variable or pass a build arg:
 
 ```console
-$ make docker/build GO_ZETASQL_BASE=go-zetasql:dev
-$ make docker/build-linked GO_ZETASQL_BASE=go-zetasql:dev
+$ make docker/build GO_GOOGLESQL_BASE=go-googlesql:dev
+$ make docker/build-linked GO_GOOGLESQL_BASE=go-googlesql:dev
 ```
 
-Build the `go-zetasql:dev` image first (`make docker/build-dev` in `go-zetasql`). The runtime stage must stay compatible with the linked binary (same glibc/toolchain expectations as the chosen base).
+Build the `go-googlesql:dev` image first (`make docker/build-dev` in `go-googlesql`). The runtime stage must stay compatible with the linked binary (same glibc/toolchain expectations as the chosen base).
 
 ### Sequential test runs and shared caches
 
-When testing the full stack locally, run heavy **`go test` / Docker builds sequentially** across `go-zetasql`, `go-zetasqlite`, and `bigquery-emulator` so parallel CGO compiles do not exhaust memory. Reuse a shared **`GOCACHE`** and **`GOMODCACHE`** (see [go-zetasql README](https://github.com/goccy/go-zetasql#development)) for faster host-native runs.
+When testing the full stack locally, run heavy **`go test` / Docker builds sequentially** across `go-googlesql`, `go-googlesqlite`, and `bigquery-emulator` so parallel CGO compiles do not exhaust memory. Reuse a shared **`GOCACHE`** and **`GOMODCACHE`** (see [go-googlesql README](https://github.com/vantaboard/go-googlesql#development)) for faster host-native runs.
 
-**`GO_CACHE_ROOT`:** The [Makefile](Makefile) **`make test/linux`** target bind-mounts **`GO_CACHE_ROOT`** (default **`$HOME/.cache/go-zetasql`**) into **`gocache`**, **`gomodcache`**, and **`ccache`** in the container—the same convention as **`go-zetasql`** and **`go-zetasqlite`**. Set **`GO_CACHE_ROOT`** consistently across sibling checkouts so one warm cache serves all three repos.
+**`GO_CACHE_ROOT`:** The [Makefile](Makefile) **`make test/linux`** target bind-mounts **`GO_CACHE_ROOT`** (default **`$HOME/.cache/go-googlesql`**) into **`gocache`**, **`gomodcache`**, and **`ccache`** in the container—the same convention as **`go-googlesql`** and **`go-googlesqlite`**. Set **`GO_CACHE_ROOT`** consistently across sibling checkouts so one warm cache serves all three repos.
 
-**Optional warm-up:** Run **`make -C ../go-zetasql docker/warm-cache`** once after a cold cache or toolchain change so the next **`make test/linux`** here pays less compile cost (pre-builds the **`-race`** graph without running tests).
+**Optional warm-up:** Run **`make -C ../go-googlesql docker/warm-cache`** once after a cold cache or toolchain change so the next **`make test/linux`** here pays less compile cost (pre-builds the **`-race`** graph without running tests).
 
 # How to start the standalone server
 
@@ -283,13 +283,13 @@ func main() {
 
 # Debugging
 
-If you have specified a database file when starting `bigquery-emulator`, you can check the status of the database by using the `zetasqlite-cli` tool. See [here](https://github.com/Recidiviz/go-zetasqlite/tree/main/cmd/zetasqlite-cli#readme) for details.
+If you have specified a database file when starting `bigquery-emulator`, you can check the status of the database by using the `googlesqlite-cli` tool. See [here](https://github.com/vantaboard/go-googlesqlite/tree/main/cmd/googlesqlite-cli#readme) for details.
 
 # How it works
 
 ## BigQuery Emulator Architecture Overview
 
-After receiving a query, `go-zetasqlite` parses and analyzes the input query using `google/zetasql`. 
+After receiving a query, `go-googlesqlite` parses and analyzes the input query using `google/googlesql`. 
 Query metadata objects are extracted from the AST, then transformed into a SQLite-compatible query.
 The [modernc.org/sqlite](https://modernc.org/sqlite) driver is then used to access the SQLite Database.
 
@@ -299,7 +299,7 @@ The [modernc.org/sqlite](https://modernc.org/sqlite) driver is then used to acce
 ## Type Conversion Flow
 
 BigQuery has a number of types that do not exist in SQLite (e.g. ARRAY and STRUCT).
-In order to handle them in SQLite, `go-zetasqlite` encodes all types except `INT64` / `FLOAT64` / `BOOL` with the type information and data combination.
+In order to handle them in SQLite, `go-googlesqlite` encodes all types except `INT64` / `FLOAT64` / `BOOL` with the type information and data combination.
 When using the encoded data, the data is decoded via a custom function registered with driver before use.
 
 <img width="600px" src="https://user-images.githubusercontent.com/209884/196145033-aa032878-7e01-4ec7-9a23-b174b87e1a24.png"></img>
