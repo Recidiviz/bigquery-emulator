@@ -4,66 +4,105 @@ on:
     branches:
       - main
   pull_request:
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CGO_ENABLED: "1"
+  CC: clang
+  CXX: clang++
+
 jobs:
-  build:
-    name: Build
+  ci:
+    name: Build and test
     strategy:
+      fail-fast: false
       matrix:
-        os: [ "ubuntu-latest", "macos-latest" ]
-        go-version: [ "1.24.0" ]
+        os: [ubuntu-latest, macos-latest]
+        go-version: ["1.24.0"]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
     steps:
-    - name: checkout
-      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-    - name: setup Go ${{ matrix.go-version }}
-      uses: actions/setup-go@7b8cf10d4e4a01d4992d18a89f4d7dc5a3e6d6f4 # v4
-      with:
-        go-version: ${{ matrix.go-version }}
-        cache: true
-    - name: download modules
-      run: |
-        go mod download
-    - uses: rui314/setup-mold@725a8794d15fc7563f59595bd9556495c0564878 # v1
-    - name: build
-      run: make emulator/build
-      env:
-        CC: clang
-        CXX: clang++
-        VERSION: test
-    - name: show version
-      run: |
-        ./bigquery-emulator --version
-    - name: show linking info
-      if: runner.os == 'Linux'
-      run: |
-        ldd bigquery-emulator || true
-  test:
-    needs: build
-    name: Test
-    strategy:
-      matrix:
-        os: [ "ubuntu-latest", "macos-latest" ]
-        go-version: [ "1.24.0" ]
-    runs-on: ${{ matrix.os }}
-    steps:
-    - name: setup Go ${{ matrix.go-version }}
-      uses: actions/setup-go@7b8cf10d4e4a01d4992d18a89f4d7dc5a3e6d6f4 # v4
-      with:
-        go-version: ${{ matrix.go-version }}
-        cache: true
-    - name: checkout
-      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-    - name: download modules
-      run: |
-        go mod download
-    - name: test
-      run: go test -v ./... -count=1
-      env:
-        CC: clang
-        CXX: clang++
+      - name: Checkout bigquery-emulator
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          path: bigquery-emulator
+      - name: Resolve stack versions
+        id: ver
+        run: |
+          gsql=$(awk '/github.com\/vantaboard\/go-googlesql /{print $2; exit}' bigquery-emulator/go.mod)
+          gsqlite=$(awk '/github.com\/vantaboard\/go-googlesqlite /{print $2; exit}' bigquery-emulator/go.mod)
+          echo "gsql=${gsql}" >> "$GITHUB_OUTPUT"
+          echo "gsqlite=${gsqlite}" >> "$GITHUB_OUTPUT"
+          echo "go-googlesql=${gsql} go-googlesqlite=${gsqlite}"
+      - name: Checkout go-googlesql
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: vantaboard/go-googlesql
+          ref: ${{ steps.ver.outputs.gsql }}
+          path: go-googlesql
+      - name: Checkout go-googlesqlite
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: vantaboard/go-googlesqlite
+          ref: ${{ steps.ver.outputs.gsqlite }}
+          path: go-googlesqlite
+      - name: Setup Go
+        uses: actions/setup-go@7b8cf10d4e4a01d4992d18a89f4d7dc5a3e6d6f4 # v4
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+          cache-dependency-path: bigquery-emulator/go.sum
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+      - name: Install clang (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang
+      - uses: rui314/setup-mold@725a8794d15fc7563f59595bd9556495c0564878 # v1
+        if: runner.os == 'Linux'
+      - name: Install bazelisk
+        run: |
+          go install github.com/bazelbuild/bazelisk@v1.20.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Cache Bazel
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/bazel
+          key: ${{ runner.os }}-bazel-googlesql-${{ hashFiles('go-googlesql/internal/cmd/updater/googlesql.ref', 'go-googlesql/internal/cmd/updater/Dockerfile', 'go-googlesql/go.mod', 'go-googlesql/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-bazel-googlesql-
+      - name: Default prebuilts (release tarball or Bazel)
+        working-directory: ${{ github.workspace }}
+        env:
+          GOOGLESQL_VERSION: ${{ steps.ver.outputs.gsql }}
+        run: bash go-googlesql/scripts/ci-download-or-build-default-prebuilts.sh go-googlesql
+      - name: Download modules
+        working-directory: bigquery-emulator
+        run: go mod download
+      - name: Build and test
+        working-directory: bigquery-emulator
+        env:
+          VERSION: test
+        run: |
+          source ../go-googlesql/scripts/go-googlesql-stack-bootstrap.sh
+          make emulator/build
+          go test -tags googlesql,googlesql_unified_prebuilt -v ./... -count=1
+      - name: Show version
+        working-directory: bigquery-emulator
+        run: ./bigquery-emulator --version
+      - name: Show linking info
+        if: runner.os == 'Linux'
+        working-directory: bigquery-emulator
+        run: ldd bigquery-emulator || true
 
   python-integration-test:
-    needs: build
+    needs: ci
     name: Python Integration Test
     runs-on: ubuntu-latest
     steps:
@@ -105,7 +144,7 @@ jobs:
         BIGQUERY_EMULATOR_VERSION: test
 
   node-integration-test:
-    needs: build
+    needs: ci
     name: Node.js Integration Test
     runs-on: ubuntu-latest
     steps:

@@ -83,7 +83,7 @@ $ make docker/build
 
 For **repeat** host builds, use **`CC="ccache clang"`** and **`CXX="ccache clang++"`** (and on **Linux**, **`mold`** on **`PATH`**), or **`make test/linux`** for CI-parity tests inside **`go-googlesql:dev`**.
 
-**CI vs sibling stack:** GitHub Actions builds with **`make emulator/build`** against the **public module** (no `replace`); local development with **`replace`** should run **`make test/linux`** or keep prebuilts in **`../go-googlesql`** as in [`docs/prebuilt-cgo.md`](https://github.com/vantaboard/go-googlesql/blob/main/docs/prebuilt-cgo.md).
+**CI:** [`.github/workflows/test.yml`](.github/workflows/test.yml) checks out **`vantaboard/go-googlesql`** and **`vantaboard/go-googlesqlite`** at the pinned **`go.mod`** versions beside this repo, runs **`ci-download-or-build-default-prebuilts.sh`** on **`go-googlesql`**, then **`make emulator/build`** and **`go test`** with [`go-googlesql-stack-bootstrap.sh`](https://github.com/vantaboard/go-googlesql/blob/main/scripts/go-googlesql-stack-bootstrap.sh) so the default **`googlesql,googlesql_unified_prebuilt`** link path matches local sibling development.
 
 ### Local `go-googlesql` base image (upgrade / CGO cache)
 
