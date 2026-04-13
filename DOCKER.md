@@ -1,6 +1,20 @@
 # Docker image (local build)
 
-The emulator links **go-googlesql** (CGO + C++) and **go-googlesqlite**. Your `go.mod` uses `replace` to sibling modules, so the image is built from a **parent directory** that contains all three repositories:
+The emulator links **go-googlesql** (CGO + C++) and **go-googlesqlite** using the default **`googlesql,googlesql_unified_prebuilt`** tags (see [go-googlesql `docs/prebuilt-cgo.md`](https://github.com/vantaboard/go-googlesql/blob/main/docs/prebuilt-cgo.md)).
+
+## Recommended: build from this repo (`Makefile`)
+
+With sibling checkouts `../go-googlesql` and `../go-googlesqlite`, from **this** directory:
+
+```bash
+make docker/build
+```
+
+This uses [`Dockerfile.linked`](Dockerfile.linked), [`GO_GOOGLESQL_BASE`](Makefile), and **`docker build --build-context`** so the image matches your local trees. Override paths if needed: `GO_GOOGLESQL_ROOT=... GO_GOOGLESQLITE_ROOT=... make docker/build`.
+
+## Alternative: parent-directory context (`Dockerfile`)
+
+Your `go.mod` uses `replace` to sibling modules; the classic image is built from a **parent directory** that contains all three repositories:
 
 ```text
 your-workspace/
@@ -8,8 +22,6 @@ your-workspace/
   go-googlesqlite/
   bigquery-emulator/    ← this repo
 ```
-
-## Build
 
 From the **parent** directory (e.g. `~/Code` if your clones live there):
 
@@ -67,6 +79,10 @@ docker run --rm -p 9050:9050 bigquery-emulator:local \
 
 Environment variables (see `--help`) mirror the long flags, e.g. `BIGQUERY_EMULATOR_PROJECT`, `BIGQUERY_EMULATOR_DATASET`.
 
-## Why not `docker build` inside only `bigquery-emulator/`?
+## Why not plain `docker build .` without `Dockerfile.linked`?
+
+Published versions on the module proxy do not ship prebuilt `.a` archives; the supported stack uses sibling **`go-googlesql`** sources (with prebuilts) plus **`go-googlesql-stack-bootstrap.sh`**-compatible env at link time. [`Makefile`](Makefile) `docker/build` encodes that layout.
+
+## Why not `docker build` inside only `bigquery-emulator/` without build contexts?
 
 Published versions on the module proxy may not match your `replace`-based workspace; building from the three-repo layout matches `go.mod` and avoids API skew.

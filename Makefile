@@ -1,34 +1,31 @@
 VERSION ?= latest
 REVISION := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 LINKED_GOWORK := $(CURDIR)/go.work.linked
-# Pin matches the default in Dockerfile. Override for local upgrade testing, e.g. GO_GOOGLESQL_BASE=go-googlesql:dev
+# Pin matches the default in Dockerfile.linked. Override for local upgrade testing, e.g. GO_GOOGLESQL_BASE=go-googlesql:dev
 GO_GOOGLESQL_BASE ?= ghcr.io/vantaboard/go-googlesql:0.5.5-recidiviz.3
-
-emulator/build:
-	CGO_ENABLED=1 CXX=clang++ go build -o bigquery-emulator \
-		./cmd/bigquery-emulator
-
-emulator/build-linked:
-	CGO_ENABLED=1 CXX=clang++ GOWORK=$(LINKED_GOWORK) go build -o bigquery-emulator \
-		./cmd/bigquery-emulator
-
-docker/build:
-	docker build -t bigquery-emulator . \
-		--build-arg VERSION=${VERSION} \
-		--build-arg GO_GOOGLESQL_BASE=${GO_GOOGLESQL_BASE}
-
-docker/build-linked:
-	docker build -t bigquery-emulator:linked -f Dockerfile.linked . \
-		--build-arg VERSION=${VERSION} \
-		--build-arg GO_GOOGLESQL_BASE=${GO_GOOGLESQL_BASE} \
-		--build-context go_googlesql=../go-googlesql \
-		--build-context go_googlesqlite=../go-googlesqlite
-
-# Same dev image + GO_CACHE_ROOT as ../go-googlesql. Requires sibling checkouts and go.work.linked (build go-googlesql:dev in go-googlesql first).
 GO_GOOGLESQL_ROOT ?= $(abspath $(CURDIR)/../go-googlesql)
 GO_GOOGLESQLITE_ROOT ?= $(abspath $(CURDIR)/../go-googlesqlite)
+GOOGLESQL_BUILD_TAGS ?= googlesql,googlesql_unified_prebuilt
+
+# Same dev image + GO_CACHE_ROOT as ../go-googlesql (requires sibling checkouts; build go-googlesql:dev first for test/linux).
 DOCKER_DEV_IMAGE ?= go-googlesql:dev
 GO_CACHE_ROOT ?= $(HOME)/.cache/go-googlesql
+
+emulator/build:
+	bash -c 'set -euo pipefail; source "$(GO_GOOGLESQL_ROOT)/scripts/go-googlesql-stack-bootstrap.sh"; go build -tags "$(GOOGLESQL_BUILD_TAGS)" -o bigquery-emulator ./cmd/bigquery-emulator'
+
+emulator/build-linked:
+	bash -c 'set -euo pipefail; source "$(GO_GOOGLESQL_ROOT)/scripts/go-googlesql-stack-bootstrap.sh"; export GOWORK="$(LINKED_GOWORK)"; go build -tags "$(GOOGLESQL_BUILD_TAGS)" -o bigquery-emulator ./cmd/bigquery-emulator'
+
+# Default image build: Dockerfile.linked + sibling build contexts (works from this repo root).
+docker/build:
+	docker build -t bigquery-emulator -f Dockerfile.linked . \
+		--build-arg VERSION=${VERSION} \
+		--build-arg GO_GOOGLESQL_BASE=${GO_GOOGLESQL_BASE} \
+		--build-context go_googlesql=$(GO_GOOGLESQL_ROOT) \
+		--build-context go_googlesqlite=$(GO_GOOGLESQLITE_ROOT)
+
+docker/build-linked: docker/build
 
 .PHONY: test/linux
 test/linux:
@@ -46,4 +43,4 @@ test/linux:
 		-v "$(GO_CACHE_ROOT)/ccache":/root/.ccache \
 		-w /work/bigquery-emulator \
 		$(DOCKER_DEV_IMAGE) \
-		bash -c "go test -race -v ./... -count=1"
+		bash -c 'set -euo pipefail; source /work/go-googlesql/scripts/go-googlesql-stack-bootstrap.sh; go test -race -v ./... -count=1'

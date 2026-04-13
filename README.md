@@ -68,25 +68,22 @@ You can also download the darwin(amd64) and linux(amd64) binaries directly from 
 
 ## Development build modes
 
-**go-googlesql Tier B / release prebuilts:** Native archive layout, `SHA256SUMS`, and downstream checklist live in [`go-googlesql` `docs/prebuilt-cgo.md`](https://github.com/vantaboard/go-googlesql/blob/main/docs/prebuilt-cgo.md) and [`CHANGELOG.md`](https://github.com/vantaboard/go-googlesql/blob/main/CHANGELOG.md). When you bump `github.com/vantaboard/go-googlesql`, pin the same version as any **GitHub Release** prebuilt tarball you unpack, or run `make prebuilt-libs` in that `go-googlesql` checkout.
+**Default: unified prebuilt stack (`googlesql` + `googlesql_unified_prebuilt`):** Native archives, release tarball **`go-googlesql-prebuilts-default-linux_amd64-<tag>.tar.gz`**, and downstream checklist live in [`go-googlesql` `docs/prebuilt-cgo.md`](https://github.com/vantaboard/go-googlesql/blob/main/docs/prebuilt-cgo.md). When you bump `github.com/vantaboard/go-googlesql`, use the **same** Git tag for the Go module, any prebuilt tarball you unpack, and [`docs/stack-release-policy.md`](https://github.com/vantaboard/go-googlesql/blob/main/docs/stack-release-policy.md).
 
-For normal `bigquery-emulator` work, use the default pinned dependency path so local builds do not pull sibling `go-googlesql` source into every compile:
+**Host linker env:** [`Makefile`](Makefile) targets source [`go-googlesql/scripts/go-googlesql-stack-bootstrap.sh`](https://github.com/vantaboard/go-googlesql/blob/main/scripts/go-googlesql-stack-bootstrap.sh) so **`CGO_LDFLAGS_ALLOW`** / **`CGO_LDFLAGS`** match [`Taskfile.yml`](https://github.com/vantaboard/go-googlesql/blob/main/Taskfile.yml).
+
+For normal `bigquery-emulator` work with sibling `replace` checkouts:
 
 ```console
 $ make emulator/build
 $ make docker/build
 ```
 
-If you are actively editing `../go-googlesql` or `../go-googlesqlite`, use the linked-source targets instead:
+`emulator/build-linked` uses `go.work.linked` (same bootstrap and tags). `docker/build-linked` is an alias for `docker/build` ([`Dockerfile.linked`](Dockerfile.linked) + sibling build contexts).
 
-```console
-$ make emulator/build-linked
-$ make docker/build-linked
-```
+For **repeat** host builds, use **`CC="ccache clang"`** and **`CXX="ccache clang++"`** (and on **Linux**, **`mold`** on **`PATH`**), or **`make test/linux`** for CI-parity tests inside **`go-googlesql:dev`**.
 
-The linked targets opt into `go.work.linked` and the linked Docker build so the slower cross-repo rebuild path is only used when needed.
-
-For **repeat** host builds (`emulator/build` or `emulator/build-linked`), use **`CC="ccache clang"`** and **`CXX="ccache clang++"`** (and on **Linux**, **`mold`** on **`PATH`** for faster linking—same idea as [go-googlesql](https://github.com/vantaboard/go-googlesql#development)), or rely on **`make test/linux`** below for CI-parity compilation inside **`go-googlesql:dev`**.
+**CI vs sibling stack:** GitHub Actions builds with **`make emulator/build`** against the **public module** (no `replace`); local development with **`replace`** should run **`make test/linux`** or keep prebuilts in **`../go-googlesql`** as in [`docs/prebuilt-cgo.md`](https://github.com/vantaboard/go-googlesql/blob/main/docs/prebuilt-cgo.md).
 
 ### Local `go-googlesql` base image (upgrade / CGO cache)
 

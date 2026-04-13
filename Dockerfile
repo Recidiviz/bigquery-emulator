@@ -28,14 +28,17 @@ COPY bigquery-emulator /src/bigquery-emulator
 
 WORKDIR /src/bigquery-emulator
 
+# Align with go-googlesql Taskfile / scripts/go-googlesql-env.sh (default unified prebuilt path).
 ENV CGO_ENABLED=1
 ENV CC=clang
 ENV CXX=clang++
-ENV CGO_LDFLAGS=-fuse-ld=mold
+ENV CGO_CXXFLAGS=-stdlib=libc++
+ENV CGO_LDFLAGS_ALLOW="-Wl,--no-gc-sections|-Wl,--allow-multiple-definition|-fuse-ld=mold|-Wl,--whole-archive|-Wl,--no-whole-archive|-Wl,--start-group|-Wl,--end-group|-stdlib=libc\+\+"
+ENV CGO_LDFLAGS="-Wl,--no-gc-sections -Wl,--allow-multiple-definition -fuse-ld=mold -stdlib=libc++"
 
 RUN --mount=type=cache,target=/go/pkg/mod \
 	--mount=type=cache,target=/root/.cache/go-build \
-	go build -tags googlesql -trimpath -ldflags="-s -w" \
+	go build -tags googlesql,googlesql_unified_prebuilt -trimpath -ldflags="-s -w" \
 		-o /out/bigquery-emulator \
 		./cmd/bigquery-emulator
 
