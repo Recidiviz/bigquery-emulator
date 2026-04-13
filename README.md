@@ -70,39 +70,39 @@ You can also download the darwin(amd64) and linux(amd64) binaries directly from 
 
 **Default: unified prebuilt stack (`googlesql` + `googlesql_unified_prebuilt`):** Native archives, release tarball **`go-googlesql-prebuilts-default-linux_amd64-<tag>.tar.gz`**, and downstream checklist live in [`go-googlesql` `docs/prebuilt-cgo.md`](https://github.com/vantaboard/go-googlesql/blob/main/docs/prebuilt-cgo.md). When you bump `github.com/vantaboard/go-googlesql`, use the **same** Git tag for the Go module, any prebuilt tarball you unpack, and [`docs/stack-release-policy.md`](https://github.com/vantaboard/go-googlesql/blob/main/docs/stack-release-policy.md).
 
-**Host linker env:** [`Makefile`](Makefile) targets source [`go-googlesql/scripts/go-googlesql-stack-bootstrap.sh`](https://github.com/vantaboard/go-googlesql/blob/main/scripts/go-googlesql-stack-bootstrap.sh) so **`CGO_LDFLAGS_ALLOW`** / **`CGO_LDFLAGS`** match [`Taskfile.yml`](https://github.com/vantaboard/go-googlesql/blob/main/Taskfile.yml).
+**Host linker env:** [direnv](https://direnv.net/) with this repo’s [`.envrc`](.envrc), or [`go-googlesql/scripts/go-googlesql-stack-bootstrap.sh`](https://github.com/vantaboard/go-googlesql/blob/main/scripts/go-googlesql-stack-bootstrap.sh), so **`CGO_LDFLAGS_ALLOW`** / **`CGO_LDFLAGS`** match [`go-googlesql` `Taskfile.yml`](https://github.com/vantaboard/go-googlesql/blob/main/Taskfile.yml).
 
 For normal `bigquery-emulator` work with sibling `replace` checkouts:
 
 ```console
-$ make emulator/build
-$ make docker/build
+$ task emulator:build
+$ task docker:build
 ```
 
-`emulator/build-linked` uses `go.work.linked` (same bootstrap and tags). `docker/build-linked` is an alias for `docker/build` ([`Dockerfile.linked`](Dockerfile.linked) + sibling build contexts).
+`emulator:build-linked` uses `go.work.linked` (same bootstrap and tags). `docker:build-linked` is an alias for `docker:build` ([`Dockerfile.linked`](Dockerfile.linked) + sibling build contexts).
 
-For **repeat** host builds, use **`CC="ccache clang"`** and **`CXX="ccache clang++"`** (and on **Linux**, **`mold`** on **`PATH`**), or **`make test/linux`** for CI-parity tests inside **`go-googlesql:dev`**.
+For **repeat** host builds, use **`CC="ccache clang"`** and **`CXX="ccache clang++"`** (and on **Linux**, **`mold`** on **`PATH`**), or **`task test:linux`** for CI-parity tests inside **`go-googlesql:dev`**.
 
-**CI:** [`.github/workflows/test.yml`](.github/workflows/test.yml) checks out **`vantaboard/go-googlesql`** and **`vantaboard/go-googlesqlite`** at the pinned **`go.mod`** versions beside this repo, runs **`ci-download-or-build-default-prebuilts.sh`** on **`go-googlesql`**, then **`make emulator/build`** and **`go test`** with [`go-googlesql-stack-bootstrap.sh`](https://github.com/vantaboard/go-googlesql/blob/main/scripts/go-googlesql-stack-bootstrap.sh) so the default **`googlesql,googlesql_unified_prebuilt`** link path matches local sibling development.
+**CI:** [`.github/workflows/test.yml`](.github/workflows/test.yml) checks out **`vantaboard/go-googlesql`** and **`vantaboard/go-googlesqlite`** at the pinned **`go.mod`** versions beside this repo, runs **`ci-download-or-build-default-prebuilts.sh`** on **`go-googlesql`**, then **`task emulator:build`** and **`go test`** with [`go-googlesql-stack-bootstrap.sh`](https://github.com/vantaboard/go-googlesql/blob/main/scripts/go-googlesql-stack-bootstrap.sh) so the default **`googlesql,googlesql_unified_prebuilt`** link path matches local sibling development.
 
 ### Local `go-googlesql` base image (upgrade / CGO cache)
 
-Docker builds use a **pinned Go+clang** base (`GO_GOOGLESQL_BASE`, default `ghcr.io/vantaboard/go-googlesql:0.5.5-recidiviz.3`). To validate against a **local** toolchain image you built from the `go-googlesql` repo (for example tag `go-googlesql:dev`), override the Makefile variable or pass a build arg:
+Docker builds use a **pinned Go+clang** base (`GO_GOOGLESQL_BASE`, default `ghcr.io/vantaboard/go-googlesql:0.5.5-recidiviz.3`). To validate against a **local** toolchain image you built from the `go-googlesql` repo (for example tag `go-googlesql:dev`), pass env when invoking Task:
 
 ```console
-$ make docker/build GO_GOOGLESQL_BASE=go-googlesql:dev
-$ make docker/build-linked GO_GOOGLESQL_BASE=go-googlesql:dev
+$ GO_GOOGLESQL_BASE=go-googlesql:dev task docker:build
+$ GO_GOOGLESQL_BASE=go-googlesql:dev task docker:build-linked
 ```
 
-Build the `go-googlesql:dev` image first (`make docker/build-dev` in `go-googlesql`). The runtime stage must stay compatible with the linked binary (same glibc/toolchain expectations as the chosen base).
+Build the `go-googlesql:dev` image first (`task docker:build-dev` in `go-googlesql`). The runtime stage must stay compatible with the linked binary (same glibc/toolchain expectations as the chosen base).
 
 ### Sequential test runs and shared caches
 
 When testing the full stack locally, run heavy **`go test` / Docker builds sequentially** across `go-googlesql`, `go-googlesqlite`, and `bigquery-emulator` so parallel CGO compiles do not exhaust memory. Reuse a shared **`GOCACHE`** and **`GOMODCACHE`** (see [go-googlesql README](https://github.com/vantaboard/go-googlesql#development)) for faster host-native runs.
 
-**`GO_CACHE_ROOT`:** The [Makefile](Makefile) **`make test/linux`** target bind-mounts **`GO_CACHE_ROOT`** (default **`$HOME/.cache/go-googlesql`**) into **`gocache`**, **`gomodcache`**, and **`ccache`** in the container—the same convention as **`go-googlesql`** and **`go-googlesqlite`**. Set **`GO_CACHE_ROOT`** consistently across sibling checkouts so one warm cache serves all three repos.
+**`GO_CACHE_ROOT`:** The [Taskfile](Taskfile.yml) **`task test:linux`** target bind-mounts **`GO_CACHE_ROOT`** (default **`$HOME/.cache/go-googlesql`**) into **`gocache`**, **`gomodcache`**, and **`ccache`** in the container—the same convention as **`go-googlesql`** and **`go-googlesqlite`**. Set **`GO_CACHE_ROOT`** consistently across sibling checkouts so one warm cache serves all three repos.
 
-**Optional warm-up:** Run **`make -C ../go-googlesql docker/warm-cache`** once after a cold cache or toolchain change so the next **`make test/linux`** here pays less compile cost (pre-builds the **`-race`** graph without running tests).
+**Optional warm-up:** Run **`task -d ../go-googlesql docker:warm-cache`** once after a cold cache or toolchain change so the next **`task test:linux`** here pays less compile cost (pre-builds the **`-race`** graph without running tests).
 
 # How to start the standalone server
 

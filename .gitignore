@@ -23,5 +23,8 @@ __pycache__
 # JetBrains IDE
 .idea
 
+# Local direnv overrides (optional; see .envrc)
+.envrc.local
+
 # Mac files
 .DS_Store

@@ -2,15 +2,15 @@
 
 The emulator links **go-googlesql** (CGO + C++) and **go-googlesqlite** using the default **`googlesql,googlesql_unified_prebuilt`** tags (see [go-googlesql `docs/prebuilt-cgo.md`](https://github.com/vantaboard/go-googlesql/blob/main/docs/prebuilt-cgo.md)).
 
-## Recommended: build from this repo (`Makefile`)
+## Recommended: build from this repo ([`Taskfile.yml`](Taskfile.yml))
 
 With sibling checkouts `../go-googlesql` and `../go-googlesqlite`, from **this** directory:
 
 ```bash
-make docker/build
+task docker:build
 ```
 
-This uses [`Dockerfile.linked`](Dockerfile.linked), [`GO_GOOGLESQL_BASE`](Makefile), and **`docker build --build-context`** so the image matches your local trees. Override paths if needed: `GO_GOOGLESQL_ROOT=... GO_GOOGLESQLITE_ROOT=... make docker/build`.
+This uses [`Dockerfile.linked`](Dockerfile.linked), **`GO_GOOGLESQL_BASE`** (default pinned in [`Taskfile.yml`](Taskfile.yml)), and **`docker build --build-context`** so the image matches your local trees. Override paths if needed: `GO_GOOGLESQL_ROOT=... GO_GOOGLESQLITE_ROOT=... task docker:build`.
 
 ## Alternative: parent-directory context (`Dockerfile`)
 
@@ -81,7 +81,7 @@ Environment variables (see `--help`) mirror the long flags, e.g. `BIGQUERY_EMULA
 
 ## Why not plain `docker build .` without `Dockerfile.linked`?
 
-Published versions on the module proxy do not ship prebuilt `.a` archives; the supported stack uses sibling **`go-googlesql`** sources (with prebuilts) plus **`go-googlesql-stack-bootstrap.sh`**-compatible env at link time. [`Makefile`](Makefile) `docker/build` encodes that layout.
+Published versions on the module proxy do not ship prebuilt `.a` archives; the supported stack uses sibling **`go-googlesql`** sources (with prebuilts) plus **`go-googlesql-stack-bootstrap.sh`**-compatible env at link time. [`Taskfile.yml`](Taskfile.yml) `docker:build` encodes that layout.
 
 ## Why not `docker build` inside only `bigquery-emulator/` without build contexts?
 

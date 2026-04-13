@@ -1,0 +1,72 @@
+version: "3"
+
+# https://taskfile.dev — tasks source `.envrc` (GO_GOOGLESQL_ROOT, GO_GOOGLESQLITE_ROOT, stack-bootstrap).
+
+vars:
+  DOCKER_DEV_IMAGE: go-googlesql:dev
+
+tasks:
+  default:
+    desc: Show common tasks (full list task --list-all)
+    cmds:
+      - |
+        echo "bigquery-emulator — https://taskfile.dev (task --list-all)"
+        echo "Common: task emulator:build | task docker:build | task test:linux"
+
+  emulator:build:
+    desc: Build bigquery-emulator binary (unified prebuilt tags)
+    cmds:
+      - |
+        set -euo pipefail
+        source .envrc
+        go build -tags "$GOOGLESQL_BUILD_TAGS" -o bigquery-emulator ./cmd/bigquery-emulator
+
+  emulator:build-linked:
+    desc: Build using go.work.linked
+    cmds:
+      - |
+        set -euo pipefail
+        source .envrc
+        export GOWORK="$PWD/go.work.linked"
+        go build -tags "$GOOGLESQL_BUILD_TAGS" -o bigquery-emulator ./cmd/bigquery-emulator
+
+  docker:build:
+    desc: Dockerfile.linked + sibling build contexts
+    cmds:
+      - |
+        set -euo pipefail
+        source .envrc
+        VERSION="${VERSION:-latest}"
+        GO_GOOGLESQL_BASE="${GO_GOOGLESQL_BASE:-ghcr.io/vantaboard/go-googlesql:0.5.5-recidiviz.3}"
+        docker build -t bigquery-emulator -f Dockerfile.linked . \
+          --build-arg VERSION="$VERSION" \
+          --build-arg GO_GOOGLESQL_BASE="$GO_GOOGLESQL_BASE" \
+          --build-context go_googlesql="$GO_GOOGLESQL_ROOT" \
+          --build-context go_googlesqlite="$GO_GOOGLESQLITE_ROOT"
+
+  docker:build-linked:
+    desc: Alias for docker:build
+    cmds:
+      - task: docker:build
+
+  test:linux:
+    desc: Run go test -race in go-googlesql:dev (shared GO_CACHE_ROOT)
+    cmds:
+      - |
+        set -euo pipefail
+        source .envrc
+        docker run --rm \
+          -e CGO_ENABLED=1 -e CC=clang -e CXX=clang++ \
+          -e GOPROXY=https://proxy.golang.org,direct \
+          -e GOSUMDB=sum.golang.org \
+          -e CCACHE_DIR=/root/.ccache -e CCACHE_COMPRESS=1 \
+          -e GOWORK=/work/bigquery-emulator/go.work.linked \
+          -v "$PWD":/work/bigquery-emulator \
+          -v "$GO_GOOGLESQL_ROOT":/work/go-googlesql \
+          -v "$GO_GOOGLESQLITE_ROOT":/work/go-googlesqlite \
+          -v "$GO_CACHE_ROOT/gocache":/root/.cache/go-build \
+          -v "$GO_CACHE_ROOT/gomodcache":/go/pkg/mod \
+          -v "$GO_CACHE_ROOT/ccache":/root/.ccache \
+          -w /work/bigquery-emulator \
+          {{.DOCKER_DEV_IMAGE}} \
+          bash -c 'set -euo pipefail; source /work/go-googlesql/scripts/go-googlesql-stack-bootstrap.sh; go test -race -v ./... -count=1'

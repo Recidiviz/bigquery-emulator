@@ -27,7 +27,8 @@ WORKDIR /work/bigquery-emulator
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    GOWORK=/work/bigquery-emulator/go.work.linked make emulator/build
+    GOWORK=/work/bigquery-emulator/go.work.linked \
+    bash -lc 'set -euo pipefail; source /work/go-googlesql/scripts/go-googlesql-stack-bootstrap.sh; go build -tags "$GOOGLESQL_BUILD_TAGS" -o bigquery-emulator ./cmd/bigquery-emulator'
 
 ARG GO_GOOGLESQL_BASE=ghcr.io/vantaboard/go-googlesql:0.5.5-recidiviz.3
 FROM ${GO_GOOGLESQL_BASE} AS emulator

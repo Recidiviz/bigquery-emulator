@@ -89,9 +89,10 @@ jobs:
         working-directory: bigquery-emulator
         env:
           VERSION: test
+          GO_GOOGLESQL_ROOT: ${{ github.workspace }}/go-googlesql
         run: |
           source ../go-googlesql/scripts/go-googlesql-stack-bootstrap.sh
-          make emulator/build
+          task emulator:build
           go test -tags googlesql,googlesql_unified_prebuilt -v ./... -count=1
       - name: Show version
         working-directory: bigquery-emulator
