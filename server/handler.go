@@ -2249,7 +2249,7 @@ func addTableMetadata(ctx context.Context, server *Server, spec *googlesqlite.Ta
 	}
 	fields := make([]*bigqueryv2.TableFieldSchema, 0, len(spec.Columns))
 	for _, column := range spec.Columns {
-		googlesqlType, err := column.Type.ToType()
+		googlesqlType, err := column.Type.ToGoogleSQLType()
 		if err != nil {
 			return err
 		}

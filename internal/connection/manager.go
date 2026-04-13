@@ -134,9 +134,9 @@ func (t *Tx) SetProjectAndDataset(projectID, datasetID string) {
 
 func (t *Tx) MetadataRepoMode() error {
 	if err := t.conn.googlesqliteConnection.Raw(func(c interface{}) error {
-		googlesqliteConn, ok := c.(*googlesqlite.iteConn)
+		googlesqliteConn, ok := c.(*googlesqlite.GoogleSQLiteConn)
 		if !ok {
-			return fmt.Errorf("failed to get iteConn from %T", c)
+			return fmt.Errorf("failed to get GoogleSQLiteConn from %T", c)
 		}
 		_ = googlesqliteConn.SetNamePath([]string{})
 		return nil
@@ -148,9 +148,9 @@ func (t *Tx) MetadataRepoMode() error {
 
 func (t *Tx) ContentRepoMode() error {
 	if err := t.conn.googlesqliteConnection.Raw(func(c interface{}) error {
-		googlesqliteConn, ok := c.(*googlesqlite.iteConn)
+		googlesqliteConn, ok := c.(*googlesqlite.GoogleSQLiteConn)
 		if !ok {
-			return fmt.Errorf("failed to get iteConn from %T", c)
+			return fmt.Errorf("failed to get GoogleSQLiteConn from %T", c)
 		}
 		if t.conn.DatasetID == "" {
 			_ = googlesqliteConn.SetNamePath([]string{t.conn.ProjectID})

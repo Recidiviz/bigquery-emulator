@@ -41,9 +41,9 @@ func (r *Repository) getConnection(ctx context.Context, projectID, datasetID str
 		return nil, fmt.Errorf("failed to get connection: %w", err)
 	}
 	if err := conn.Raw(func(c interface{}) error {
-		googlesqliteConn, ok := c.(*googlesqlite.iteConn)
+		googlesqliteConn, ok := c.(*googlesqlite.GoogleSQLiteConn)
 		if !ok {
-			return fmt.Errorf("failed to get iteConn from %T", c)
+			return fmt.Errorf("failed to get GoogleSQLiteConn from %T", c)
 		}
 		if datasetID == "" {
 			_ = googlesqliteConn.SetNamePath([]string{projectID})
@@ -117,7 +117,7 @@ func getSchemaFromResult(result sql.Result) (*bigqueryv2.TableSchema, error) {
 	createdTable := changedCatalog.Table.Added[0]
 	fields := make([]*bigqueryv2.TableFieldSchema, 0, len(createdTable.Columns))
 	for _, col := range createdTable.Columns {
-		googlesqlType, err := col.Type.ToType()
+		googlesqlType, err := col.Type.ToGoogleSQLType()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get googlesql type: %w", err)
 		}
@@ -198,9 +198,9 @@ func (r *Repository) Query(ctx context.Context, tx *connection.Tx, projectID, da
 	)
 	// We must pass the query parameters to googlesqlite so the analyzer uses the proper typings
 	if err := tx.Conn().Raw(func(c interface{}) error {
-		googlesqliteConn, ok := c.(*googlesqlite.iteConn)
+		googlesqliteConn, ok := c.(*googlesqlite.GoogleSQLiteConn)
 		if !ok {
-			return fmt.Errorf("failed to get iteConn from %T", c)
+			return fmt.Errorf("failed to get GoogleSQLiteConn from %T", c)
 		}
 		googlesqliteConn.SetQueryParameters(params)
 		return nil
@@ -233,7 +233,7 @@ func (r *Repository) Query(ctx context.Context, tx *connection.Tx, projectID, da
 		if err != nil {
 			return nil, fmt.Errorf("failed to get type from database type name: %w", err)
 		}
-		googlesqlType, err := typ.ToType()
+		googlesqlType, err := typ.ToGoogleSQLType()
 		if err != nil {
 			return nil, err
 		}
