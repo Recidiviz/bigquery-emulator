@@ -4,11 +4,12 @@ import (
 	"compress/gzip"
 	"context"
 	"fmt"
-	connection2 "github.com/goccy/bigquery-emulator/internal/connection"
 	"net/http"
 	"runtime"
 	"sync"
 	"time"
+
+	connection2 "github.com/goccy/bigquery-emulator/internal/connection"
 
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
