@@ -39,7 +39,14 @@ import (
 )
 
 func errorResponse(ctx context.Context, w http.ResponseWriter, e *ServerError) {
-	logger.Logger(ctx).WithOptions(zap.AddCallerSkip(1)).Error(string(e.Reason), zap.Error(e))
+	fields := []zap.Field{zap.Error(e)}
+	fields = append(fields, logger.HTTPRequestFields(ctx)...)
+	fields = append(fields, logger.LogFields(ctx)...)
+	fields = append(fields, ResourceLogFields(ctx)...)
+	if err := ctx.Err(); err != nil {
+		fields = append(fields, zap.NamedError("request_context_err", err))
+	}
+	logger.Logger(ctx).WithOptions(zap.AddCallerSkip(1)).Error(string(e.Reason), fields...)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(e.Status)
 	w.Write(e.Response())
@@ -219,6 +226,11 @@ func (h *uploadHandler) serveMultipart(w http.ResponseWriter, r *http.Request) {
 		errorResponse(ctx, w, errInvalid(fmt.Sprintf("failed to decode job: %s", err.Error())))
 		return
 	}
+	ctx = logger.WithLogFields(ctx,
+		zap.String("upload_type", "multipart"),
+		zap.String("upload_step", "insert_job"),
+		zap.String("job_id", job.JobReference.JobId),
+	)
 	uploadJob, err := h.Handle(ctx, &uploadRequest{
 		server:  server,
 		project: project,
@@ -233,6 +245,12 @@ func (h *uploadHandler) serveMultipart(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		errorResponse(ctx, w, errInvalid(fmt.Sprintf("multipart request is invalid: %s", err.Error())))
 		return
+	}
+	ctx = logger.WithLogFields(ctx,
+		zap.String("upload_step", "load_data"),
+	)
+	if c := uploadJob.Content(); c != nil && c.Configuration != nil && c.Configuration.Load != nil {
+		ctx = logger.WithLogFields(ctx, zap.String("source_format", c.Configuration.Load.SourceFormat))
 	}
 	u := &uploadContentHandler{}
 	err = u.Handle(ctx, &uploadContentRequest{
@@ -257,6 +275,11 @@ func (h *uploadHandler) serveResumable(w http.ResponseWriter, r *http.Request) {
 		errorResponse(ctx, w, errInvalid(fmt.Sprintf("failed to decode job: %s", err.Error())))
 		return
 	}
+	ctx = logger.WithLogFields(ctx,
+		zap.String("upload_type", "resumable"),
+		zap.String("upload_step", "create_session"),
+		zap.String("job_id", job.JobReference.JobId),
+	)
 	res, err := h.Handle(ctx, &uploadRequest{
 		server:  server,
 		project: project,
@@ -305,7 +328,10 @@ func (h *uploadHandler) Handle(ctx context.Context, r *uploadRequest) (*metadata
 	defer tx.RollbackIfNotCommitted()
 	job := metadata.NewJob(r.server.metaRepo, r.project.ID, r.job.JobReference.JobId, r.job.ToJob(), nil, nil)
 	if err := r.project.AddJob(ctx, tx.Tx(), job); err != nil {
-		return nil, fmt.Errorf("failed to add job: %w", err)
+		return nil, fmt.Errorf(
+			"persist load job metadata (project_id=%s job_id=%s): %w",
+			r.project.ID, job.ID, err,
+		)
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("failed to commit job: %w", err)
@@ -343,6 +369,14 @@ func (h *uploadContentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	if job == nil {
 		errorResponse(ctx, w, errJobInternalError(fmt.Sprintf("job %s not found", jobID)))
 		return
+	}
+	ctx = logger.WithLogFields(ctx,
+		zap.String("upload_type", "resumable"),
+		zap.String("upload_step", "load_data"),
+		zap.String("job_id", job.ID),
+	)
+	if c := job.Content(); c != nil && c.Configuration != nil && c.Configuration.Load != nil {
+		ctx = logger.WithLogFields(ctx, zap.String("source_format", c.Configuration.Load.SourceFormat))
 	}
 	if err := h.Handle(ctx, &uploadContentRequest{
 		server:  server,
@@ -1021,10 +1055,20 @@ func (h *uploadContentHandler) Handle(ctx context.Context, r *uploadContentReque
 		}
 		decoder := json.NewDecoder(r.reader)
 		decoder.UseNumber()
+		recordNum := 0
 		for decoder.More() {
+			recordNum++
 			d := make(map[string]interface{})
 			if err := decoder.Decode(&d); err != nil {
-				return err
+				return fmt.Errorf(
+					"decode NDJSON record %d (sourceFormat=%s, job_id=%s, destination=%s.%s): %w",
+					recordNum,
+					load.SourceFormat,
+					r.job.ID,
+					tableRef.DatasetId,
+					tableRef.TableId,
+					err,
+				)
 			}
 			h.normalizeColumnNameForJSONData(columnMap, d)
 			data = append(data, d)

@@ -2,9 +2,10 @@ package server
 
 import (
 	"context"
-	"github.com/goccy/bigquery-emulator/internal/connection"
 
+	"github.com/goccy/bigquery-emulator/internal/connection"
 	"github.com/goccy/bigquery-emulator/internal/metadata"
+	"go.uber.org/zap"
 )
 
 type (
@@ -80,4 +81,43 @@ func withRoutine(ctx context.Context, routine *metadata.Routine) context.Context
 
 func routineFromContext(ctx context.Context) *metadata.Routine {
 	return ctx.Value(routineKey{}).(*metadata.Routine)
+}
+
+// ResourceLogFields returns route-scoped resource identifiers when present on the context.
+func ResourceLogFields(ctx context.Context) []zap.Field {
+	var fields []zap.Field
+	if v := ctx.Value(projectKey{}); v != nil {
+		if p, ok := v.(*metadata.Project); ok && p != nil {
+			fields = append(fields, zap.String("project_id", p.ID))
+		}
+	}
+	if v := ctx.Value(datasetKey{}); v != nil {
+		if d, ok := v.(*metadata.Dataset); ok && d != nil {
+			fields = append(fields, zap.String("dataset_id", d.ID))
+		}
+	}
+	if v := ctx.Value(jobKey{}); v != nil {
+		if j, ok := v.(*metadata.Job); ok && j != nil {
+			fields = append(fields, zap.String("job_id", j.ID))
+		}
+	}
+	if v := ctx.Value(tableKey{}); v != nil {
+		if t, ok := v.(*metadata.Table); ok && t != nil {
+			fields = append(fields,
+				zap.String("table_id", t.ID),
+				zap.String("table_dataset_id", t.DatasetID),
+			)
+		}
+	}
+	if v := ctx.Value(modelKey{}); v != nil {
+		if m, ok := v.(*metadata.Model); ok && m != nil {
+			fields = append(fields, zap.String("model_id", m.ID))
+		}
+	}
+	if v := ctx.Value(routineKey{}); v != nil {
+		if rt, ok := v.(*metadata.Routine); ok && rt != nil {
+			fields = append(fields, zap.String("routine_id", rt.ID))
+		}
+	}
+	return fields
 }
