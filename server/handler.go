@@ -13,7 +13,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
-	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -2993,55 +2992,6 @@ type tabledataInsertAllRequest struct {
 	dataset *metadata.Dataset
 	table   *metadata.Table
 	req     *bigqueryv2.TableDataInsertAllRequest
-}
-
-func normalizeInsertValue(v interface{}, field *bigqueryv2.TableFieldSchema) (interface{}, error) {
-	rv := reflect.ValueOf(v)
-	kind := rv.Kind()
-	if field.Mode == "REPEATED" {
-		if kind != reflect.Slice && kind != reflect.Array {
-			return nil, fmt.Errorf("invalid value type %T for ARRAY column", v)
-		}
-		values := make([]interface{}, 0, rv.Len())
-		for i := 0; i < rv.Len(); i++ {
-			value, err := normalizeInsertValue(rv.Index(i).Interface(), &bigqueryv2.TableFieldSchema{
-				Fields: field.Fields,
-			})
-			if err != nil {
-				return nil, err
-			}
-			values = append(values, value)
-		}
-		return values, nil
-	}
-	if kind == reflect.Map {
-		fieldMap := map[string]*bigqueryv2.TableFieldSchema{}
-		for _, f := range field.Fields {
-			fieldMap[f.Name] = f
-		}
-		columnNameToValueMap := map[string]interface{}{}
-		for _, key := range rv.MapKeys() {
-			if key.Kind() != reflect.String {
-				return nil, fmt.Errorf("invalid value type %s for STRUCT column", key.Kind())
-			}
-			columnName := key.Interface().(string)
-			value, err := normalizeInsertValue(rv.MapIndex(key).Interface(), fieldMap[columnName])
-			if err != nil {
-				return nil, err
-			}
-			columnNameToValueMap[columnName] = value
-		}
-		fields := make([]map[string]interface{}, 0, len(fieldMap))
-		for _, f := range field.Fields {
-			value, exists := columnNameToValueMap[f.Name]
-			if !exists {
-				return nil, fmt.Errorf("failed to find value from %s", f.Name)
-			}
-			fields = append(fields, map[string]interface{}{f.Name: value})
-		}
-		return fields, nil
-	}
-	return v, nil
 }
 
 func (h *tabledataInsertAllHandler) Handle(ctx context.Context, r *tabledataInsertAllRequest) (*bigqueryv2.TableDataInsertAllResponse, error) {

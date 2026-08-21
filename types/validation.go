@@ -38,26 +38,57 @@ type FieldValidationError struct {
 	FieldName string
 }
 
-// ValidateDataAgainstSchema validates that all fields in the data exist in the schema.
-// It returns a list of validation errors, one per row that has an unknown field.
+// ValidateDataAgainstSchema validates that all fields in the data exist in the
+// schema, including keys nested inside RECORD/STRUCT values. It returns a list
+// of validation errors, one per row that has an unknown field.
 // Only one unknown field is reported per row (matching BigQuery's behavior).
 func ValidateDataAgainstSchema(schema *bigqueryv2.TableSchema, data Data) []FieldValidationError {
-	schemaFields := make(map[string]bool)
-	for _, f := range schema.Fields {
-		schemaFields[f.Name] = true
-	}
-
 	var errors []FieldValidationError
 	for rowIdx, row := range data {
-		for fieldName := range row {
-			if !schemaFields[fieldName] {
-				errors = append(errors, FieldValidationError{
-					RowIndex:  rowIdx,
-					FieldName: fieldName,
-				})
-				break // Only one error per row (matches BigQuery behavior)
-			}
+		if path, found := findUnknownField(schema.Fields, row, ""); found {
+			errors = append(errors, FieldValidationError{
+				RowIndex:  rowIdx,
+				FieldName: path,
+			})
 		}
 	}
 	return errors
+}
+
+// findUnknownField returns the dotted path of the first key in row (a row or a
+// nested RECORD value) that does not exist in fields. JSON columns have no
+// nested schema (no Fields), so their object values are not descended into.
+func findUnknownField(fields []*bigqueryv2.TableFieldSchema, row map[string]interface{}, prefix string) (string, bool) {
+	fieldMap := make(map[string]*bigqueryv2.TableFieldSchema, len(fields))
+	for _, f := range fields {
+		fieldMap[f.Name] = f
+	}
+	for key, value := range row {
+		path := key
+		if prefix != "" {
+			path = prefix + "." + key
+		}
+		f, exists := fieldMap[key]
+		if !exists {
+			return path, true
+		}
+		if len(f.Fields) == 0 {
+			continue
+		}
+		switch v := value.(type) {
+		case map[string]interface{}:
+			if p, found := findUnknownField(f.Fields, v, path); found {
+				return p, true
+			}
+		case []interface{}:
+			for _, elem := range v {
+				if m, ok := elem.(map[string]interface{}); ok {
+					if p, found := findUnknownField(f.Fields, m, path); found {
+						return p, true
+					}
+				}
+			}
+		}
+	}
+	return "", false
 }

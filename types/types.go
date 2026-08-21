@@ -571,6 +571,7 @@ func normalizeData(v interface{}, field *bigqueryv2.TableFieldSchema) (interface
 		values := make([]interface{}, 0, rv.Len())
 		for i := 0; i < rv.Len(); i++ {
 			value, err := normalizeData(rv.Index(i).Interface(), &bigqueryv2.TableFieldSchema{
+				Type:   field.Type,
 				Fields: field.Fields,
 			})
 			if err != nil {
@@ -579,6 +580,20 @@ func normalizeData(v interface{}, field *bigqueryv2.TableFieldSchema) (interface
 			values = append(values, value)
 		}
 		return values, nil
+	}
+	if Type(field.Type) == JSON {
+		// BigQuery accepts JSON column values as objects/arrays in insertAll,
+		// not only as pre-serialized strings, so store their JSON text form.
+		// A JSON column has no nested schema, so it must not fall through to
+		// the STRUCT handling below.
+		if kind == reflect.Map || kind == reflect.Slice || kind == reflect.Array {
+			encoded, err := json.Marshal(v)
+			if err != nil {
+				return nil, fmt.Errorf("failed to encode value for JSON column: %w", err)
+			}
+			return string(encoded), nil
+		}
+		return v, nil
 	}
 	if kind == reflect.Map {
 		fieldMap := map[string]*bigqueryv2.TableFieldSchema{}
@@ -592,7 +607,14 @@ func normalizeData(v interface{}, field *bigqueryv2.TableFieldSchema) (interface
 				return nil, fmt.Errorf("invalid value type %s for STRUCT column", key.Kind())
 			}
 			columnName := key.Interface().(string)
-			value, err := normalizeData(rv.MapIndex(key).Interface(), fieldMap[columnName])
+			f, exists := fieldMap[columnName]
+			if !exists {
+				// Guard against a nil schema dereference; insertAll catches this
+				// earlier via ValidateDataAgainstSchema, but other callers
+				// (load jobs, storage API) reach here unvalidated.
+				return nil, fmt.Errorf("no such field: %s", columnName)
+			}
+			value, err := normalizeData(rv.MapIndex(key).Interface(), f)
 			if err != nil {
 				return nil, err
 			}
