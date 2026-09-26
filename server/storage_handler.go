@@ -796,6 +796,8 @@ func (s *storageWriteServer) BatchCommitWriteStreams(ctx context.Context, req *s
 		if err != nil {
 			streamErrors = append(streamErrors, s.createUnspecifiedStorageError(streamName, err))
 		}
+
+		status.rows = nil
 	}
 	return &storagepb.BatchCommitWriteStreamsResponse{
 		CommitTime:   timestamppb.New(time.Now()),
