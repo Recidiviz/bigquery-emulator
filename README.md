@@ -1,3 +1,8 @@
+> [!IMPORTANT]
+> This repository is archived and is superseded by [ZigQuery](https://github.com/Recidiviz/ZigQuery)
+
+---
+
 # BigQuery Emulator (Recidiviz fork)
 
 The BigQuery emulator provides a way to launch a BigQuery server on your local machine for testing and development.
